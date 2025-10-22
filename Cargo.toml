@@ -4,5 +4,12 @@ members = [ "crates/geoetl-cli","crates/geoetl-core"
 ]
 resolver = "3"
 
+[workspace.package]
+version = "0.1.0"
+authors = ["Yogesh Dhanapal"]
+description = "Modern vector geospatial ETL in Rust. 5-10x faster than GDAL with distributed processing support."
+documentation = "https://geoetl.com"
+edition = "2024"
+
 [workspace.dependencies]
 clap = "4.5.20"

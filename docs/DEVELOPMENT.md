@@ -33,14 +33,14 @@ Or manually ensure you have Rust 1.90.0 installed.
 
 Format, lint, and run the CLI in one command:
 ```bash
-cargo fmt && cargo clippy --all-targets --all-features && cargo run -p geoetl-cli
+cargo fmt --all && cargo clippy --workspace --all-targets --all-features && cargo run -p geoetl-cli
 ```
 
 ### Code Formatting
 
 Format all code:
 ```bash
-cargo fmt
+cargo fmt --all
 ```
 
 Check formatting without making changes:
