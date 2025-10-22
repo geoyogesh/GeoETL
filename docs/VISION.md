@@ -6,7 +6,7 @@ GeoETL is a modern, high-performance CLI tool for spatial data conversion and pr
 
 ## Vision Statement
 
-**To become the modern standard for vector and raster spatial data processing, empowering users with blazing-fast performance, seamless scalability, and an intuitive developer experience.**
+**To become the modern standard for vector spatial data processing, empowering users with blazing-fast performance, seamless scalability, and an intuitive developer experience.**
 
 ## Mission
 
@@ -65,21 +65,8 @@ GeoETL addresses these challenges by building on a modern technology stack:
 - Attribute filtering and transformation
 - Spatial indexing and optimization
 - Coordinate reference system transformations
-
-### Raster Processing
-
-- Read/write raster formats (GeoTIFF, COG, NetCDF, HDF5, etc.)
-- Band operations and transformations
-- Resampling and reprojection
-- Raster algebra and analysis
-- Tiling and pyramiding
-
-### Hybrid Operations
-
-- Raster-vector integration
-- Zonal statistics
-- Extract by mask
-- Rasterization and vectorization
+- Spatial joins and aggregations
+- Advanced geometric algorithms
 
 ## Strategic Goals
 
@@ -90,7 +77,7 @@ GeoETL addresses these challenges by building on a modern technology stack:
 - CLI interface and user experience
 
 ### Phase 2: Core Functionality
-- Expand format support (vector and raster)
+- Expand vector format support
 - Implement common spatial operations
 - Coordinate reference system handling
 - Performance benchmarking against GDAL
@@ -173,7 +160,7 @@ User CLI → GeoETL Core → Ballista Scheduler → Ballista Executors → Distr
 
 - **Q1 2026**: CLI framework, basic vector I/O, DataFusion integration
 - **Q2 2026**: Core spatial operations, format expansion, benchmarking
-- **Q3 2026**: Raster support, optimization pass, performance parity with GDAL
+- **Q3 2026**: Advanced spatial algorithms, optimization pass, performance parity with GDAL
 - **Q4 2026**: Ballista integration, distributed processing, cloud storage
 - **2027+**: Ecosystem expansion, language bindings, plugin architecture
 
@@ -181,7 +168,7 @@ User CLI → GeoETL Core → Ballista Scheduler → Ballista Executors → Distr
 
 GeoETL represents a bold reimagining of geospatial data processing for the modern era. By leveraging cutting-edge technologies like Rust, DataFusion, and Ballista, we aim to provide a tool that is not just a replacement for GDAL, but a significant leap forward in performance, scalability, and developer experience.
 
-Our north star is clear: **democratize high-performance geospatial computing**, making it accessible whether you're processing a single shapefile on a laptop or petabytes of satellite imagery across a distributed cluster.
+Our north star is clear: **democratize high-performance geospatial computing**, making it accessible whether you're processing a single shapefile on a laptop or petabytes of vector data across a distributed cluster.
 
 ---
 
