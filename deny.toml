@@ -1,0 +1,61 @@
+# cargo-deny configuration for geoetl project
+# See: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Enable all features when building the dependency graph
+all-features = false
+
+[advisories]
+version = 2
+yanked = "warn"
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+
+ignore = [
+    # Add any security advisories to ignore here with justification
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+
+allow = [
+    # Permissive licenses (fully compatible with MIT)
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+
+    # Public domain
+    "CC0-1.0",
+
+    # Unicode licenses
+    "Unicode-3.0",
+    # Note: Unicode-DFS-2016 can be added if needed
+
+    # Compression library licenses
+    "bzip2-1.0.6",
+]
+
+# Note: If MPL-2.0 dependencies are introduced in the future, they can be added.
+# MPL-2.0 is weak copyleft (file-level) and compatible with MIT for distribution,
+# but requires modifications to MPL files to remain under MPL-2.0.
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+
+# Known acceptable duplicate versions from transitive dependencies
+skip = [
+]
+
+skip-tree = [
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

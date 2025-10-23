@@ -7,8 +7,10 @@ This guide is for developers who want to contribute to GeoETL or build it from s
 - [Prerequisites](#prerequisites)
 - [Project Structure](#project-structure)
 - [Setup](#setup)
+  - [Pre-commit Hooks](#pre-commit-hooks-optional)
 - [Development Workflow](#development-workflow)
 - [Docker Development Environment](#docker-based-workflow)
+- [License and Security Checks](#license-and-security-checks)
 - [Pre-Commit Checklist](#pre-commit-checklist)
 - [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
@@ -24,6 +26,7 @@ This guide is for developers who want to contribute to GeoETL or build it from s
 
 - Rust 1.90.0 or later
 - [mise](https://mise.jdx.dev/) for tool version management (optional but recommended)
+- [prek](https://github.com/j178/prek) for pre-commit hooks (optional but recommended)
 
 ## Project Structure
 
@@ -44,6 +47,61 @@ mise install
 ```
 
 Or manually ensure you have Rust 1.90.0 installed.
+
+### Pre-commit Hooks (Optional)
+
+The project uses pre-commit hooks to automatically run formatting, linting, tests, and security checks before each commit.
+
+#### Install prek
+
+prek is a fast, Rust-based pre-commit tool (compatible with standard pre-commit):
+
+```bash
+# Using standalone installer (recommended)
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/j178/prek/releases/latest/download/prek-installer.sh | sh
+
+# Or using Homebrew
+brew install prek
+
+# Or using pip
+pip install prek
+
+# Or build from source
+cargo install --locked --git https://github.com/j178/prek
+```
+
+Alternatively, you can use the standard pre-commit tool:
+```bash
+pip install pre-commit
+```
+
+#### Setup Hooks
+
+Install the git hooks:
+```bash
+prek install
+# or: pre-commit install
+```
+
+The hooks will now run automatically on `git commit`. They will:
+- Auto-format code with `cargo fmt`
+- Check for lint warnings with `cargo clippy`
+- Run tests with `cargo test`
+- Verify licenses and dependencies with `cargo deny`
+- Check for security vulnerabilities with `cargo audit`
+
+#### Run Manually
+
+Run all hooks on all files:
+```bash
+prek run --all-files
+# or: pre-commit run --all-files
+```
+
+Skip hooks for a single commit:
+```bash
+git commit --no-verify
+```
 
 ### Docker-Based Workflow
 
@@ -153,6 +211,59 @@ Quick compile check without building:
 cargo check
 ```
 
+### License and Security Checks
+
+The project uses `cargo-deny` to ensure license compliance, check for security vulnerabilities, and validate dependencies.
+
+#### Install cargo-deny
+
+```bash
+cargo install cargo-deny
+```
+
+#### Run All Checks
+
+```bash
+cargo deny check
+```
+
+Or use the mise task:
+```bash
+mise security
+```
+
+This runs both `cargo audit` (security vulnerabilities) and `cargo deny check` (licenses, bans, sources).
+
+#### Individual Checks
+
+Check licenses only:
+```bash
+cargo deny check licenses
+```
+
+Check security advisories:
+```bash
+cargo deny check advisories
+```
+
+Check for banned or duplicate dependencies:
+```bash
+cargo deny check bans
+```
+
+Check dependency sources:
+```bash
+cargo deny check sources
+```
+
+#### Configuration
+
+License and dependency policies are configured in `deny.toml` at the workspace root. Allowed licenses include:
+- MIT, Apache-2.0
+- BSD-2-Clause, BSD-3-Clause
+- ISC, Zlib, CC0-1.0
+- Unicode-3.0
+
 ## Pre-Commit Checklist
 
 Before committing code, ensure:
@@ -161,20 +272,22 @@ Before committing code, ensure:
 2. No Clippy warnings: `cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic`
 3. All tests pass: `cargo test --workspace --all-targets`
 4. Documentation builds: `cargo doc --no-deps`
+5. License and security checks pass: `cargo deny check`
 
 All in one command:
 ```bash
-cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic && cargo test --workspace --all-targets
+cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic && cargo test --workspace --all-targets && cargo deny check
 ```
 
 ### mise Tasks
 
 Common workflows are available through mise:
 ```bash
-mise run fmt    # rustfmt across the workspace
-mise run lint   # clippy with pedantic warnings denied
-mise run test   # workspace tests
-mise run check  # fmt + lint + test
+mise run fmt      # rustfmt across the workspace
+mise run lint     # clippy with pedantic warnings denied
+mise run test     # workspace tests
+mise run check    # fmt + lint + test
+mise run security # cargo audit + cargo deny check
 ```
 
 ## Documentation

@@ -16,3 +16,10 @@ run = "cargo test --workspace --all-targets"
 [tasks.check]
 description = "Run formatting, linting, and tests"
 depends = ["fmt", "lint", "test"]
+
+[tasks.security]
+description = "Run security audit and license checks"
+run = """
+cargo audit
+cargo deny check
+"""
