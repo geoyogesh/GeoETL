@@ -39,17 +39,10 @@ geoetl-cli --version
 ## Convert
 
 ```bash
-# Convert with explicit drivers (Phase 1 - command structure only, I/O in Phase 2)
+# Convert with explicit drivers
 geoetl-cli convert \
   -i input.geojson \
   -o output.parquet \
-  --input-driver GeoJSON \
-  --output-driver Parquet
-
-# Common conversions (when I/O is implemented)
-geoetl-cli convert \
-  -i data.geojson \
-  -o data.parquet \
   --input-driver GeoJSON \
   --output-driver Parquet
 ```
@@ -57,17 +50,11 @@ geoetl-cli convert \
 ## Info
 
 ```bash
-# Basic info
+# Basic info (I/O implementation in Phase 2)
 geoetl-cli info data.geojson
 
-# Detailed info
-geoetl-cli info --detailed data.shp
-
-# With statistics
-geoetl-cli info --stats data.gpkg
-
-# Both detailed and stats
-geoetl-cli info --detailed --stats cities.geojson
+# Detailed info with statistics (I/O implementation in Phase 2)
+geoetl-cli info --detailed --stats data.shp
 ```
 
 ## Drivers
@@ -118,23 +105,6 @@ geoetl-cli convert \
   --output-driver "ESRI Shapefile"
 ```
 
-### Conversion with Validation (Phase 2)
-```bash
-geoetl-cli convert -i input.geojson -o output.shp --input-driver GeoJSON --output-driver "ESRI Shapefile"
-geoetl-cli validate --geometry --attributes output.shp
-geoetl-cli info --detailed output.shp
-```
-
-### Query and Convert
-```bash
-geoetl-cli query \
-  -i all_cities.geojson \
-  -s "SELECT * FROM features WHERE population > 100000" \
-  -o large_cities.geojson
-
-geoetl-cli convert -i large_cities.geojson -o large_cities.gpkg
-```
-
 ### Data Quality Check
 ```bash
 geoetl-cli info --detailed --stats data.geojson
@@ -162,7 +132,7 @@ geoetl-cli -d convert -i input.geojson -o output.shp
 
 1. **Driver specification**: Currently requires explicit `--input-driver` and `--output-driver` (auto-detection coming in Phase 2)
 2. **Verbose output**: Add `-v` to see progress and detailed information
-3. **Check capabilities**: Use `geoetl-cli drivers --detailed` to see what each driver supports
+3. **Check capabilities**: Use `geoetl-cli drivers` to see what each driver supports
 4. **Command help**: Every command has detailed help with `--help`
 5. **Phase 1 Status**: CLI framework and driver registry are complete; file I/O implementation is Phase 2
 

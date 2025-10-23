@@ -72,7 +72,7 @@ GeoETL is in active early development. We are currently establishing the core ar
 - Carto, Elasticsearch
 - Google Earth Engine
 
-...and many more! See `geoetl-cli drivers --detailed` for the complete list.
+...and many more! See `geoetl-cli drivers` for the complete list.
 
 ## Quick Start
 
@@ -104,7 +104,7 @@ cargo run -p geoetl-cli
 # List available drivers (2 currently supported: GeoJSON, Parquet)
 geoetl-cli drivers
 
-# Convert between formats (command structure implemented, I/O in Phase 2)
+# Convert between formats
 geoetl-cli convert \
   -i input.geojson \
   -o output.parquet \
@@ -113,13 +113,17 @@ geoetl-cli convert \
 
 # Get dataset information
 geoetl-cli info data.geojson
-geoetl-cli info --detailed --stats data.shp
+geoetl-cli info --detailed --stats data.geojson
 
 # Enable verbose logging
-geoetl-cli -v convert -i input.geojson -o output.parquet
+geoetl-cli -v convert \
+  -i input.geojson \
+  -o output.parquet \
+  --input-driver GeoJSON \
+  --output-driver Parquet
 ```
 
-**Note**: Core I/O functionality (convert, info) is currently in Phase 2 development. The CLI framework, driver registry, and logging are fully implemented.
+
 
 ## Documentation
 

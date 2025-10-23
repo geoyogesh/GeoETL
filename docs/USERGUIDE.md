@@ -109,7 +109,7 @@ geoetl-cli convert [OPTIONS] --input <DATASET> --output <DATASET>
 #### Examples
 
 ```bash
-# Convert with explicit drivers (recommended in Phase 1)
+# Convert with explicit drivers
 geoetl-cli convert \
   -i input.geojson \
   -o output.shp \
@@ -145,7 +145,7 @@ geoetl-cli convert \
   --output-driver GeoJSON
 ```
 
-**Note**: In Phase 1, the convert command structure is implemented but file I/O is not. Driver auto-detection will be added in Phase 2.
+
 
 #### Status
 
@@ -276,6 +276,8 @@ Each driver has three capability flags:
 
 ### Planned Formats (Phase 2)
 
+This is a partial list of formats planned for implementation in Phase 2. For a complete list of all drivers, run `geoetl-cli drivers`.
+
 | Driver | Long Name | Status |
 |--------|-----------|--------|
 | GeoJSONSeq | GeoJSONSeq: sequence of GeoJSON features | Planned |
@@ -301,36 +303,34 @@ geoetl-cli drivers
 geoetl-cli drivers
 ```
 
-### Format Conversion Workflow (Phase 2 - Not Yet Implemented)
+### Format Conversion Workflow
 
 ```bash
 # 1. Check supported formats
 geoetl-cli drivers
 
-# 2. Convert your data (when I/O is implemented)
+# 2. Convert your data
 geoetl-cli convert \
   -i input.geojson \
   -o output.parquet \
   --input-driver GeoJSON \
   --output-driver Parquet
 
-# 3. View information about the result (when implemented)
+# 3. View information about the result
 geoetl-cli info --detailed --stats output.parquet
 ```
 
-**Note**: File I/O implementation is in progress (Phase 2).
 
-### Dataset Information Workflow (Phase 2 - Not Yet Implemented)
+
+### Dataset Information Workflow
 
 ```bash
-# Get basic dataset information (when implemented)
+# Get basic dataset information
 geoetl-cli info data.geojson
 
-# Get detailed information with statistics (when implemented)
+# Get detailed information with statistics
 geoetl-cli info --detailed --stats data.geojson
 ```
-
-**Note**: File I/O implementation is in progress (Phase 2).
 
 ---
 
