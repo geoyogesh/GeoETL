@@ -1,4 +1,4 @@
-//! `geoetl-core` is the core library for the GeoETL project, providing fundamental functionalities
+//! `geoetl-core` is the core library for the `GeoETL` project, providing fundamental functionalities
 //! for geospatial data processing.
 //!
 //! This crate includes:

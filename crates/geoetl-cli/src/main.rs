@@ -54,11 +54,11 @@ enum Commands {
         #[arg(short, long, value_name = "DATASET")]
         output: String,
 
-        /// The driver to use for reading the input dataset (e.g., "GeoJSON", "Parquet").
+        /// The driver to use for reading the input dataset (e.g., "`GeoJSON`", "`Parquet`").
         #[arg(long, value_name = "DRIVER")]
         input_driver: String,
 
-        /// The driver to use for writing the output dataset (e.g., "GeoJSON", "Parquet").
+        /// The driver to use for writing the output dataset (e.g., "`GeoJSON`", "`Parquet`").
         #[arg(long, value_name = "DRIVER")]
         output_driver: String,
     },

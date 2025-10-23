@@ -33,6 +33,23 @@ mise install
 
 Or manually ensure you have Rust 1.90.0 installed.
 
+### Docker-Based Workflow
+
+The repository includes a containerized development environment for consistent tooling:
+
+```bash
+# Start the watcher-driven dev container (fmt + clippy + tests on change)
+docker compose up geoetl-dev
+
+# Run a CLI command inside the dev container
+docker compose run --rm --entrypoint /opt/geoetl/bin/geoetl-cli-dev.sh geoetl-dev drivers
+
+# Run the full check suite once, without the watcher
+docker compose --profile test run --rm geoetl-test
+```
+
+Both services share cached cargo volumes (`cargo-target`, `cargo-registry`, `cargo-git`) for faster incremental builds. Stop containers with `docker compose down`.
+
 ## Development Workflow
 
 ### Quick Development Cycle

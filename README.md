@@ -177,6 +177,23 @@ cargo test --workspace --all-targets
 cargo run -p geoetl-cli
 ```
 
+### Docker Development Environment
+
+- Build the image and start an auto-reloading dev container:
+  ```bash
+  docker compose up geoetl-dev
+  ```
+  This container watches the workspace, running `fmt`, `clippy`, and `test` on changes.
+- Run a one-off CLI command inside the dev image (arguments forwarded to `cargo run -p geoetl-cli -- …`):
+  ```bash
+  docker compose run --rm --entrypoint /opt/geoetl/bin/geoetl-cli-dev.sh geoetl-dev drivers
+  ```
+- Run the full check suite on demand without the watcher:
+  ```bash
+  docker compose --profile test run --rm geoetl-test
+  ```
+- Volumes cache `target/` and cargo registries for faster rebuilds; stop the stack with `docker compose down`.
+
 ### Linting & Formatting
 
 - Local helpers are available via `mise`:

@@ -1,0 +1,44 @@
+services:
+  geoetl-dev:
+    image: geoetl/dev:latest
+    build:
+      context: .
+      dockerfile: docker/dev/Dockerfile
+      args:
+        USER_ID: ${UID:-1000}
+        GROUP_ID: ${GID:-1000}
+    working_dir: /workspace
+    command:
+      - /opt/geoetl/bin/geoetl-dev-watch.sh
+    environment:
+      CARGO_TERM_COLOR: always
+      RUST_LOG: info
+    volumes:
+      - ./:/workspace:delegated
+      - cargo-target:/workspace/target
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+    tty: true
+    init: true
+
+  geoetl-test:
+    image: geoetl/dev:latest
+    working_dir: /workspace
+    command:
+      - /opt/geoetl/bin/geoetl-run-checks.sh
+    environment:
+      CARGO_TERM_COLOR: always
+    volumes:
+      - ./:/workspace:delegated
+      - cargo-target:/workspace/target
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+    profiles:
+      - test
+    tty: true
+    init: true
+
+volumes:
+  cargo-target:
+  cargo-registry:
+  cargo-git:
