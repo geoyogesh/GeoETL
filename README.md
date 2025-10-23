@@ -74,34 +74,27 @@ GeoETL is in active early development. We are currently establishing the core ar
 
 ...and many more! See `geoetl-cli drivers` for the complete list.
 
-## Quick Start
+## Installation
 
-### Prerequisites
+### Building from Source (Current)
 
-- Rust 1.90.0 or later
-- [mise](https://mise.jdx.dev/) (optional, for tool version management)
-
-### Installation
+**Note**: GeoETL is in early development. Pre-built binaries will be available in future releases.
 
 ```bash
-# Clone the repository
+# Prerequisites: Rust 1.90.0 or later
 git clone https://github.com/yourusername/geoetl.git
 cd geoetl
-
-# Install Rust toolchain (if using mise)
-mise install
-
-# Build the project
 cargo build --release
 
-# Run the CLI
-cargo run -p geoetl-cli
+# The binary will be at: target/release/geoetl-cli
 ```
 
-### Basic Usage
+For detailed build instructions and development setup, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+## Quick Start
 
 ```bash
-# List available drivers (2 currently supported: GeoJSON, Parquet)
+# List available drivers
 geoetl-cli drivers
 
 # Convert between formats
@@ -116,21 +109,52 @@ geoetl-cli info data.geojson
 geoetl-cli info --detailed --stats data.geojson
 
 # Enable verbose logging
-geoetl-cli -v convert \
-  -i input.geojson \
-  -o output.parquet \
+geoetl-cli -v convert -i input.geojson -o output.parquet
+```
+
+## Common Use Cases
+
+### Check Available Formats
+
+```bash
+# See all 68+ supported driver formats
+geoetl-cli drivers
+```
+
+### Convert Spatial Data
+
+```bash
+# GeoJSON to Parquet
+geoetl-cli convert \
+  -i cities.geojson \
+  -o cities.parquet \
   --input-driver GeoJSON \
   --output-driver Parquet
+
+# More formats coming in Phase 2
+```
+
+### Inspect Datasets
+
+```bash
+# Basic information
+geoetl-cli info data.geojson
+
+# Detailed with statistics
+geoetl-cli info --detailed --stats data.geojson
 ```
 
 
 
 ## Documentation
 
-- **[User Guide](docs/USERGUIDE.md)**: Complete guide to using GeoETL CLI with examples
+### For Users
+- **[User Guide](docs/USERGUIDE.md)**: Complete guide to using GeoETL with detailed examples
 - **[Quick Reference](docs/QUICKREF.md)**: Fast command reference and cheat sheet
+
+### For Developers
+- **[Development Guide](docs/DEVELOPMENT.md)**: Build instructions, workflow, and contribution guidelines
 - **[Vision Document](docs/VISION.md)**: Project vision, goals, and strategic roadmap
-- **[Development Guide](docs/DEVELOPMENT.md)**: Setup, workflow, and contribution guidelines
 - **[Architecture Decision Records](docs/adr/)**: Detailed technical design decisions
   - [ADR 0001: High-Level Architecture](docs/adr/0001-high-level-architecture.md)
 
@@ -158,52 +182,6 @@ CLI → Core Library → DataFusion Engine → Format I/O → Data Sources
 ```
 
 See [ADR 0001](docs/adr/0001-high-level-architecture.md) for detailed architecture documentation.
-
-## Development
-
-### Development Workflow
-
-```bash
-# Ensure formatting
-cargo fmt --all
-
-# Lint (fails on any warnings)
-cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic
-
-# Run tests
-cargo test --workspace --all-targets
-
-# Optional: run the CLI
-cargo run -p geoetl-cli
-```
-
-### Docker Development Environment
-
-- Build the image and start an auto-reloading dev container:
-  ```bash
-  docker compose up geoetl-dev
-  ```
-  This container watches the workspace, running `fmt`, `clippy`, and `test` on changes.
-- Run a one-off CLI command inside the dev image (arguments forwarded to `cargo run -p geoetl-cli -- …`):
-  ```bash
-  docker compose run --rm --entrypoint /opt/geoetl/bin/geoetl-cli-dev.sh geoetl-dev drivers
-  ```
-- Run the full check suite on demand without the watcher:
-  ```bash
-  docker compose --profile test run --rm geoetl-test
-  ```
-- Volumes cache `target/` and cargo registries for faster rebuilds; stop the stack with `docker compose down`.
-
-### Linting & Formatting
-
-- Local helpers are available via `mise`:
-  - `mise run fmt` – format the workspace
-  - `mise run lint` – execute clippy with default + pedantic lints denied
-  - `mise run test` – run the full test suite
-  - `mise run check` – run formatting, linting, and tests sequentially
-- Keep `rustfmt.toml` and `clippy` warnings clean; run the checks locally before pushing changes.
-
-See the [Development Guide](docs/DEVELOPMENT.md) for comprehensive development instructions.
 
 ## Roadmap
 
@@ -246,25 +224,20 @@ See the [Development Guide](docs/DEVELOPMENT.md) for comprehensive development i
 
 ## Contributing
 
-We welcome contributions! GeoETL is committed to:
-- Leveraging and contributing back to the GeoRust ecosystem
-- Open, transparent development
-- Community-driven feature development
+We welcome contributions! Whether you want to report bugs, suggest features, or contribute code, we'd love your help.
 
-### How to Contribute
+- **Report Issues**: [GitHub Issues](https://github.com/yourusername/geoetl/issues)
+- **Discuss Ideas**: [GitHub Discussions](https://github.com/yourusername/geoetl/discussions)
+- **Contribute Code**: See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for setup and guidelines
 
-1. Check existing issues or create a new one
-2. Fork the repository
-3. Create a feature branch
-4. Make your changes following our coding standards
-5. Submit a pull request
+GeoETL is committed to leveraging and contributing back to the GeoRust ecosystem through open, transparent, community-driven development.
 
-See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed contribution guidelines.
+## Getting Help
 
-## Community
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/geoetl/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/geoetl/discussions)
+- **Documentation**: Check the [User Guide](docs/USERGUIDE.md) for detailed usage instructions
+- **Command Help**: Run `geoetl-cli --help` or `geoetl-cli <command> --help`
+- **Issues**: Report bugs at [GitHub Issues](https://github.com/yourusername/geoetl/issues)
+- **Questions**: Ask questions in [GitHub Discussions](https://github.com/yourusername/geoetl/discussions)
 
 ## License
 

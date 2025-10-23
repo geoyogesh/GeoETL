@@ -1,12 +1,20 @@
-//! `geoetl-cli` is the command-line interface for `GeoETL`, a high-performance tool for spatial data
-//! conversion and processing.
+//! Command-line interface for `GeoETL`, a high-performance geospatial data processing tool.
 //!
-//! This binary provides a user-friendly interface to interact with the `geoetl-core` library,
-//! allowing users to perform various geospatial ETL operations.
+//! This binary provides a user-friendly CLI to interact with the [`geoetl_core`] library,
+//! enabling users to perform geospatial ETL (Extract, Transform, Load) operations on
+//! vector data formats.
 //!
-//! Currently, this binary acts as a thin façade, parsing CLI arguments, configuring logging,
-//! and delegating to placeholder command handlers. The full ETL pipeline implementation
-//! is under active development.
+//! # Architecture
+//!
+//! The CLI is built using [`clap`] for argument parsing and [`tracing`] for structured logging.
+//! It currently acts as a thin façade that parses arguments, configures logging, and delegates
+//! to command handlers. The full ETL pipeline implementation is under active development.
+//!
+//! # Available Commands
+//!
+//! - `convert` - Convert data between geospatial formats
+//! - `info` - Display dataset information and metadata
+//! - `drivers` - List all available format drivers and their capabilities
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -24,13 +32,16 @@ use geoetl_core::drivers::get_available_drivers;
     long_about = "GeoETL is a high-performance CLI tool for spatial data conversion and processing.\n\
                   Built to be 5-10x faster than GDAL with distributed processing support."
 )]
-/// Top-level options accepted by the `geoetl` CLI.
+/// Command-line arguments and options for the `GeoETL` CLI.
+///
+/// This struct defines the top-level CLI interface, including global flags for
+/// logging verbosity and the subcommand to execute.
 struct Cli {
-    /// Enable verbose logging
+    /// Enable verbose (INFO level) logging output.
     #[arg(short, long, global = true)]
     verbose: bool,
 
-    /// Enable debug logging
+    /// Enable debug (DEBUG level) logging output with detailed diagnostics.
     #[arg(short, long, global = true)]
     debug: bool,
 
@@ -38,7 +49,11 @@ struct Cli {
     command: Commands,
 }
 
-/// Supported `GeoETL` subcommands.
+/// Available subcommands for the `GeoETL` CLI.
+///
+/// Each variant represents a distinct operation that can be performed on
+/// geospatial datasets, such as format conversion, metadata inspection, or
+/// driver enumeration.
 #[derive(Subcommand)]
 enum Commands {
     /// Converts data between different vector geospatial formats.
@@ -88,7 +103,14 @@ enum Commands {
     Drivers,
 }
 
-/// Entrypoint for the `geoetl` CLI.
+/// Entry point for the `GeoETL` command-line interface.
+///
+/// This function parses command-line arguments, configures the logging system based on
+/// verbosity flags, and dispatches to the appropriate command handler.
+///
+/// # Errors
+///
+/// Returns an error if command execution fails or if the logging system cannot be initialized.
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -135,22 +157,22 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Handles the `convert` subcommand. Currently a placeholder.
+/// Handles the `convert` subcommand for format conversion (currently a placeholder).
 ///
-/// This function will eventually orchestrate the ETL process for converting
-/// geospatial data from an input format to an output format using specified drivers.
+/// This function will orchestrate the ETL process for converting geospatial data from
+/// one format to another using specified drivers. The implementation is planned for Phase 2.
 ///
 /// # Arguments
 ///
-/// * `input` - The path to the input dataset.
-/// * `output` - The path to the output dataset.
-/// * `input_driver` - The name of the driver to use for reading the input.
-/// * `output_driver` - The name of the driver to use for writing the output.
+/// * `input` - Path to the input dataset file or resource
+/// * `output` - Path where the output dataset should be written
+/// * `input_driver` - Name of the driver to use for reading (e.g., `GeoJSON`)
+/// * `output_driver` - Name of the driver to use for writing (e.g., `Parquet`)
 ///
 /// # Errors
 ///
-/// This function currently returns a `Result` but does not perform any actual
-/// conversion, so it will always return `Ok(())`.
+/// This function returns a `Result` for future error handling, but currently always
+/// returns `Ok(())` as it only logs the conversion parameters without performing actual conversion.
 #[allow(clippy::unnecessary_wraps)] // Placeholder until command execution is implemented
 fn handle_convert(
     input: &str,
@@ -167,21 +189,22 @@ fn handle_convert(
     Ok(())
 }
 
-/// Handles the `info` subcommand. Currently a placeholder.
+/// Handles the `info` subcommand for dataset inspection (currently a placeholder).
 ///
-/// This function will eventually display detailed information about a geospatial dataset,
-/// including layer details and field statistics.
+/// This function will display detailed information about a geospatial dataset, including
+/// layer details, geometry types, coordinate systems, and optionally field-level statistics.
+/// The implementation is planned for Phase 2.
 ///
 /// # Arguments
 ///
-/// * `input` - The path to the input dataset.
-/// * `detailed` - Whether to show detailed layer information.
-/// * `stats` - Whether to show statistics for each field.
+/// * `input` - Path to the input dataset file or resource
+/// * `detailed` - If `true`, display detailed layer-level information
+/// * `stats` - If `true`, compute and display statistics for each field
 ///
 /// # Errors
 ///
-/// This function currently returns a `Result` but does not perform any actual
-/// information retrieval, so it will always return `Ok(())`.
+/// This function returns a `Result` for future error handling, but currently always
+/// returns `Ok(())` as it only logs the info parameters without performing actual inspection.
 #[allow(clippy::unnecessary_wraps)] // Placeholder until command execution is implemented
 fn handle_info(input: &str, detailed: bool, stats: bool) -> Result<()> {
     info!("Info command:");
@@ -192,35 +215,39 @@ fn handle_info(input: &str, detailed: bool, stats: bool) -> Result<()> {
     Ok(())
 }
 
-/// A helper struct used to format and display driver metadata in a table.
+/// Table row representation for displaying driver information.
+///
+/// This struct is used to format driver metadata into a human-readable table
+/// using the [`tabled`] crate. Each field corresponds to a column in the output table.
 #[derive(Tabled)]
 struct DriverRow {
-    /// The short name of the driver.
+    /// Short identifier for the driver (e.g., `GeoJSON`, `Parquet`).
     #[tabled(rename = "Short Name")]
     short_name: String,
-    /// The long, descriptive name of the driver.
+    /// Full descriptive name of the driver format.
     #[tabled(rename = "Long Name")]
     long_name: String,
-    /// The support status for providing dataset information.
+    /// Support status for reading dataset metadata and information.
     #[tabled(rename = "Info")]
     info: String,
-    /// The support status for reading data from the driver.
+    /// Support status for reading data from this format.
     #[tabled(rename = "Read")]
     read: String,
-    /// The support status for writing data to the driver.
+    /// Support status for writing data to this format.
     #[tabled(rename = "Write")]
     write: String,
 }
 
-/// Handles the `drivers` subcommand, emitting a formatted table of available drivers.
+/// Handles the `drivers` subcommand by displaying a formatted table of available drivers.
 ///
-/// This function retrieves the list of all known drivers from `geoetl-core` and
-/// presents their capabilities in a human-readable table format to standard output.
+/// Retrieves all drivers with at least one supported operation from the driver registry
+/// and presents their capabilities (info, read, write) in a human-readable table format
+/// written to standard output.
 ///
 /// # Errors
 ///
-/// This function currently returns a `Result` but does not perform any operations
-/// that would typically fail, so it will always return `Ok(())`.
+/// This function returns a `Result` for consistency with other command handlers,
+/// but does not currently perform any operations that fail, so it always returns `Ok(())`.
 #[allow(clippy::unnecessary_wraps)] // Placeholder until command execution is implemented
 fn handle_drivers() -> Result<()> {
     let drivers = get_available_drivers();

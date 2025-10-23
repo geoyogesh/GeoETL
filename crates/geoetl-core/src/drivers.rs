@@ -1,9 +1,30 @@
-//! Static registry describing `GeoETL` driver capabilities.
+//! Driver registry for geospatial data format support and capabilities.
 //!
-//! This module enumerates every known driver, including planned support
-//! statuses, and exposes helper functions for querying the registry.
+//! This module provides a static registry of geospatial data format drivers, including
+//! their current support status (supported, planned, or not supported) for various operations
+//! (info, read, write). The registry is modeled after GDAL's driver system but designed for
+//! modern Rust-based ETL workflows.
+//!
+//! # Examples
+//!
+//! ```
+//! use geoetl_core::drivers::{find_driver, get_available_drivers};
+//!
+//! // Find a specific driver
+//! let geojson = find_driver("GeoJSON").expect("GeoJSON driver should exist");
+//! assert!(geojson.capabilities.read.is_supported());
+//!
+//! // List all drivers with supported operations
+//! let available = get_available_drivers();
+//! for driver in available {
+//!     println!("{}: {}", driver.short_name, driver.long_name);
+//! }
+//! ```
 
-/// Represents the support status for a specific driver operation.
+/// Support status for a specific driver operation.
+///
+/// Indicates whether a driver operation (info, read, or write) is currently supported,
+/// planned for future implementation, or not supported at all.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SupportStatus {
     /// The feature is fully supported and implemented.
@@ -15,19 +36,51 @@ pub enum SupportStatus {
 }
 
 impl SupportStatus {
-    /// Returns true if the status is Supported
+    /// Returns `true` if the operation is fully supported and implemented.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geoetl_core::drivers::SupportStatus;
+    ///
+    /// assert!(SupportStatus::Supported.is_supported());
+    /// assert!(!SupportStatus::Planned.is_supported());
+    /// assert!(!SupportStatus::NotSupported.is_supported());
+    /// ```
     #[must_use]
     pub fn is_supported(&self) -> bool {
         matches!(self, SupportStatus::Supported)
     }
 
-    /// Returns true if the status is not `NotSupported` (i.e., Supported or Planned)
+    /// Returns `true` if the operation is supported or planned (i.e., not explicitly unsupported).
+    ///
+    /// This is useful for filtering drivers that have current or future support.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geoetl_core::drivers::SupportStatus;
+    ///
+    /// assert!(SupportStatus::Supported.is_available());
+    /// assert!(SupportStatus::Planned.is_available());
+    /// assert!(!SupportStatus::NotSupported.is_available());
+    /// ```
     #[must_use]
     pub fn is_available(&self) -> bool {
         !matches!(self, SupportStatus::NotSupported)
     }
 
-    /// Display string for this status
+    /// Returns the string representation of this support status.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geoetl_core::drivers::SupportStatus;
+    ///
+    /// assert_eq!(SupportStatus::Supported.as_str(), "Supported");
+    /// assert_eq!(SupportStatus::Planned.as_str(), "Planned");
+    /// assert_eq!(SupportStatus::NotSupported.as_str(), "Not Supported");
+    /// ```
     #[must_use]
     pub fn as_str(&self) -> &str {
         match self {
@@ -38,44 +91,112 @@ impl SupportStatus {
     }
 }
 
-/// Capabilities that a driver can support
+/// Capabilities supported by a geospatial data format driver.
+///
+/// Each driver can support three types of operations: reading metadata (info),
+/// reading data (read), and writing data (write). Each capability has an associated
+/// [`SupportStatus`] indicating its current implementation status.
 #[derive(Debug, Clone, Copy)]
 pub struct DriverCapabilities {
-    /// Can read information about the dataset
+    /// Support status for reading dataset metadata and information.
     pub info: SupportStatus,
-    /// Can read data from this format
+    /// Support status for reading data from this format.
     pub read: SupportStatus,
-    /// Can write data to this format
+    /// Support status for writing data to this format.
     pub write: SupportStatus,
 }
 
 impl DriverCapabilities {
-    /// Returns true if at least one operation is supported or planned
+    /// Returns `true` if at least one operation is supported or planned.
+    ///
+    /// This is useful for identifying drivers that have any level of functionality,
+    /// either current or planned for the future.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geoetl_core::drivers::{DriverCapabilities, SupportStatus};
+    ///
+    /// let caps = DriverCapabilities {
+    ///     info: SupportStatus::Planned,
+    ///     read: SupportStatus::NotSupported,
+    ///     write: SupportStatus::NotSupported,
+    /// };
+    /// assert!(caps.has_any_support());
+    /// ```
     #[must_use]
     pub fn has_any_support(&self) -> bool {
         self.info.is_available() || self.read.is_available() || self.write.is_available()
     }
 
-    /// Returns true if at least one operation is fully supported
+    /// Returns `true` if at least one operation is fully supported and implemented.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geoetl_core::drivers::{DriverCapabilities, SupportStatus};
+    ///
+    /// let caps = DriverCapabilities {
+    ///     info: SupportStatus::Supported,
+    ///     read: SupportStatus::Supported,
+    ///     write: SupportStatus::Planned,
+    /// };
+    /// assert!(caps.has_supported_operation());
+    /// ```
     #[must_use]
     pub fn has_supported_operation(&self) -> bool {
         self.info.is_supported() || self.read.is_supported() || self.write.is_supported()
     }
 }
 
-/// Vector format driver definition
+/// Geospatial data format driver definition.
+///
+/// A driver represents support for a specific geospatial data format (e.g., `GeoJSON`, `Shapefile`).
+/// Each driver has a short name (used in the CLI), a descriptive long name, and a set of
+/// capabilities indicating what operations are supported.
+///
+/// # Examples
+///
+/// ```
+/// use geoetl_core::drivers::{Driver, SupportStatus};
+///
+/// let driver = Driver::new(
+///     "GeoJSON",
+///     "GeoJSON",
+///     SupportStatus::Supported,
+///     SupportStatus::Supported,
+///     SupportStatus::Supported,
+/// );
+///
+/// assert_eq!(driver.short_name, "GeoJSON");
+/// assert!(driver.capabilities.read.is_supported());
+/// ```
 #[derive(Debug, Clone)]
 pub struct Driver {
-    /// Short name used in CLI (e.g., `GeoJSON`)
+    /// Short name used in the CLI and for driver identification (e.g., `"GeoJSON"`).
     pub short_name: &'static str,
-    /// Long descriptive name (e.g., `GeoJSON`)
+    /// Long descriptive name for display purposes (e.g., `"GeoJSON"`).
     pub long_name: &'static str,
-    /// Supported operations
+    /// Operations supported by this driver (info, read, write).
     pub capabilities: DriverCapabilities,
 }
 
 impl Driver {
-    /// Create a new driver definition
+    /// Creates a new driver definition with specified capabilities.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geoetl_core::drivers::{Driver, SupportStatus};
+    ///
+    /// let driver = Driver::new(
+    ///     "CSV",
+    ///     "Comma Separated Value",
+    ///     SupportStatus::Planned,
+    ///     SupportStatus::Planned,
+    ///     SupportStatus::Planned,
+    /// );
+    /// ```
     #[must_use]
     pub const fn new(
         short_name: &'static str,
@@ -92,7 +213,29 @@ impl Driver {
     }
 }
 
-/// Registry of all supported vector drivers
+/// Returns the complete registry of all known vector format drivers.
+///
+/// This function returns every driver in the registry, regardless of support status.
+/// Each driver includes its short name, long name, and capabilities for info, read,
+/// and write operations.
+///
+/// The registry includes 68+ drivers covering formats like `GeoJSON`, `Shapefile`, `GeoPackage`,
+/// databases (PostgreSQL/PostGIS, `MySQL`), web services (WFS, OGC API), and many more.
+///
+/// # Examples
+///
+/// ```
+/// use geoetl_core::drivers::get_drivers;
+///
+/// let all_drivers = get_drivers();
+/// println!("Total drivers in registry: {}", all_drivers.len());
+///
+/// // Find drivers with specific characteristics
+/// let read_capable = all_drivers.iter()
+///     .filter(|d| d.capabilities.read.is_supported())
+///     .count();
+/// println!("Drivers with read support: {}", read_capable);
+/// ```
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn get_drivers() -> Vec<Driver> {
@@ -525,7 +668,22 @@ pub fn get_drivers() -> Vec<Driver> {
     ]
 }
 
-/// Get all drivers that have at least one supported operation
+/// Returns all drivers that have at least one fully supported operation.
+///
+/// This filters the driver registry to include only drivers where at least one
+/// operation (info, read, or write) has [`SupportStatus::Supported`]. Drivers with
+/// only planned or unsupported operations are excluded.
+///
+/// # Examples
+///
+/// ```
+/// use geoetl_core::drivers::get_available_drivers;
+///
+/// let available = get_available_drivers();
+/// for driver in available {
+///     println!("{} is ready to use", driver.short_name);
+/// }
+/// ```
 #[must_use]
 pub fn get_available_drivers() -> Vec<Driver> {
     get_drivers()
@@ -534,7 +692,22 @@ pub fn get_available_drivers() -> Vec<Driver> {
         .collect()
 }
 
-/// Find a driver by its short name (case-insensitive)
+/// Finds a driver by its short name (case-insensitive).
+///
+/// Returns `None` if no driver with the given name exists in the registry.
+///
+/// # Examples
+///
+/// ```
+/// use geoetl_core::drivers::find_driver;
+///
+/// // Case-insensitive lookup
+/// let driver = find_driver("geojson").expect("GeoJSON should exist");
+/// assert_eq!(driver.short_name, "GeoJSON");
+///
+/// // Non-existent driver
+/// assert!(find_driver("InvalidDriver").is_none());
+/// ```
 #[must_use]
 pub fn find_driver(name: &str) -> Option<Driver> {
     get_drivers()
@@ -542,7 +715,29 @@ pub fn find_driver(name: &str) -> Option<Driver> {
         .find(|d| d.short_name.eq_ignore_ascii_case(name))
 }
 
-/// List all drivers that support a specific capability
+/// Lists all drivers that support specific capabilities.
+///
+/// Filters drivers based on whether they have full support ([`SupportStatus::Supported`])
+/// for the requested operations. If a capability parameter is `false`, that operation
+/// is not required; if `true`, the driver must support it.
+///
+/// # Arguments
+///
+/// * `read` - If `true`, only include drivers that support reading
+/// * `write` - If `true`, only include drivers that support writing
+/// * `info` - If `true`, only include drivers that support info operations
+///
+/// # Examples
+///
+/// ```
+/// use geoetl_core::drivers::list_drivers_with_capability;
+///
+/// // Find drivers that support both read and write
+/// let read_write_drivers = list_drivers_with_capability(true, true, false);
+///
+/// // Find drivers that support at least read (write optional)
+/// let read_drivers = list_drivers_with_capability(true, false, false);
+/// ```
 #[must_use]
 pub fn list_drivers_with_capability(read: bool, write: bool, info: bool) -> Vec<Driver> {
     get_drivers()
@@ -556,7 +751,24 @@ pub fn list_drivers_with_capability(read: bool, write: bool, info: bool) -> Vec<
         .collect()
 }
 
-/// Get all driver short names as a sorted list
+/// Returns all driver short names in alphabetically sorted order.
+///
+/// This is useful for displaying driver options to users or for validation.
+///
+/// # Examples
+///
+/// ```
+/// use geoetl_core::drivers::get_driver_names;
+///
+/// let names = get_driver_names();
+/// assert!(names.contains(&"GeoJSON"));
+/// assert!(names.contains(&"Parquet"));
+///
+/// // Names are sorted
+/// let mut sorted = names.clone();
+/// sorted.sort_unstable();
+/// assert_eq!(names, sorted);
+/// ```
 #[must_use]
 pub fn get_driver_names() -> Vec<&'static str> {
     let mut names: Vec<_> = get_drivers().iter().map(|d| d.short_name).collect();

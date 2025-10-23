@@ -1,12 +1,24 @@
 # Development Guide
 
-This document provides guidelines and commands for developing geoetl.
+This guide is for developers who want to contribute to GeoETL or build it from source. If you're looking to **use** GeoETL, see the [README](../README.md) and [User Guide](USERGUIDE.md) instead.
 
-## Documentation
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Project Structure](#project-structure)
+- [Setup](#setup)
+- [Development Workflow](#development-workflow)
+- [Docker Development Environment](#docker-based-workflow)
+- [Pre-Commit Checklist](#pre-commit-checklist)
+- [Documentation](#documentation)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+
+## Related Documentation
 
 - [User Guide](USERGUIDE.md) - Complete guide to using GeoETL CLI
 - [Vision](VISION.md) - Project vision and roadmap
-- [Development Guide](DEVELOPMENT.md) - This document
+- [Architecture Decision Records](adr/) - Technical design decisions
 
 ## Prerequisites
 
@@ -195,3 +207,60 @@ cargo update
 ```bash
 cargo outdated
 ```
+
+## Contributing
+
+We welcome contributions to GeoETL! Here's how to get started:
+
+### Getting Started
+
+1. **Fork and Clone**
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/geoetl.git
+   cd geoetl
+   ```
+
+2. **Create a Branch**
+   ```bash
+   git checkout -b feature/my-new-feature
+   ```
+
+3. **Make Changes**
+   - Follow the Rust coding standards
+   - Write tests for new functionality
+   - Ensure all checks pass (`mise run check`)
+
+4. **Commit Your Changes**
+   ```bash
+   git add .
+   git commit -m "feat: add new feature"
+   ```
+
+5. **Push and Create PR**
+   ```bash
+   git push origin feature/my-new-feature
+   ```
+   Then open a Pull Request on GitHub
+
+### Contribution Guidelines
+
+- **Code Quality**: All code must pass `cargo fmt`, `cargo clippy`, and `cargo test`
+- **Tests**: Add tests for new features and bug fixes
+- **Documentation**: Update documentation for user-facing changes
+- **Commit Messages**: Use conventional commit format (e.g., `feat:`, `fix:`, `docs:`)
+- **Small PRs**: Keep pull requests focused and reasonably sized
+
+### Areas for Contribution
+
+- **Format Support**: Implement readers/writers for additional formats
+- **Spatial Operations**: Add new spatial algorithms
+- **Performance**: Optimize existing operations
+- **Documentation**: Improve docs and examples
+- **Testing**: Add test coverage
+- **Bug Fixes**: Address open issues
+
+### Questions?
+
+- Open an issue for bugs or feature requests
+- Start a discussion for questions or ideas
+- Check existing issues before creating new ones

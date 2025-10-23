@@ -31,23 +31,12 @@ GeoETL is a modern, high-performance CLI tool for spatial data conversion and pr
 
 ## Installation
 
-### Building from Source
+For installation instructions, see the main [README](../README.md#installation).
+
+### Quick Reference
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/geoetl.git
-cd geoetl
-
-# Build the project
-cargo build --release
-
-# The binary will be at target/release/geoetl-cli
-```
-
-### Running Commands
-
-```bash
-# Run directly with cargo
+# Run directly with cargo (during development)
 cargo run -p geoetl-cli -- [COMMAND] [OPTIONS]
 
 # Or use the compiled binary
@@ -462,9 +451,9 @@ geoetl-cli drivers --help
 
 ## Contributing
 
-GeoETL is under active development. Contributions are welcome!
+GeoETL is under active development and we welcome contributions!
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for development setup and guidelines.
+For development setup, contribution guidelines, and how to get started, see the [Development Guide](DEVELOPMENT.md).
 
 ---
 
