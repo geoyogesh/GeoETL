@@ -164,15 +164,27 @@ See [ADR 0001](docs/adr/0001-high-level-architecture.md) for detailed architectu
 ### Development Workflow
 
 ```bash
-# Format, lint, and run
-cargo fmt && cargo clippy --all-targets --all-features && cargo run -p geoetl-cli
+# Ensure formatting
+cargo fmt --all
+
+# Lint (fails on any warnings)
+cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic
 
 # Run tests
-cargo test
+cargo test --workspace --all-targets
 
-# Build documentation
-cargo doc --no-deps --open
+# Optional: run the CLI
+cargo run -p geoetl-cli
 ```
+
+### Linting & Formatting
+
+- Local helpers are available via `mise`:
+  - `mise run fmt` – format the workspace
+  - `mise run lint` – execute clippy with default + pedantic lints denied
+  - `mise run test` – run the full test suite
+  - `mise run check` – run formatting, linting, and tests sequentially
+- Keep `rustfmt.toml` and `clippy` warnings clean; run the checks locally before pushing changes.
 
 See the [Development Guide](docs/DEVELOPMENT.md) for comprehensive development instructions.
 

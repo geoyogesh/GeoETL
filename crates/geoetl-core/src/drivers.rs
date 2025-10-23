@@ -1,26 +1,34 @@
-/// Support status for a driver operation
+//! Static registry describing `GeoETL` driver capabilities.
+//!
+//! This module enumerates every known driver, including planned support
+//! statuses, and exposes helper functions for querying the registry.
+
+/// Represents the support status for a specific driver operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SupportStatus {
-    /// Feature is fully supported
+    /// The feature is fully supported and implemented.
     Supported,
-    /// Feature is not supported
+    /// The feature is not supported by the driver.
     NotSupported,
-    /// Feature is planned for future implementation
+    /// The feature is planned for future implementation.
     Planned,
 }
 
 impl SupportStatus {
     /// Returns true if the status is Supported
+    #[must_use]
     pub fn is_supported(&self) -> bool {
         matches!(self, SupportStatus::Supported)
     }
 
-    /// Returns true if the status is not NotSupported (i.e., Supported or Planned)
+    /// Returns true if the status is not `NotSupported` (i.e., Supported or Planned)
+    #[must_use]
     pub fn is_available(&self) -> bool {
         !matches!(self, SupportStatus::NotSupported)
     }
 
     /// Display string for this status
+    #[must_use]
     pub fn as_str(&self) -> &str {
         match self {
             SupportStatus::Supported => "Supported",
@@ -43,11 +51,13 @@ pub struct DriverCapabilities {
 
 impl DriverCapabilities {
     /// Returns true if at least one operation is supported or planned
+    #[must_use]
     pub fn has_any_support(&self) -> bool {
         self.info.is_available() || self.read.is_available() || self.write.is_available()
     }
 
     /// Returns true if at least one operation is fully supported
+    #[must_use]
     pub fn has_supported_operation(&self) -> bool {
         self.info.is_supported() || self.read.is_supported() || self.write.is_supported()
     }
@@ -56,9 +66,9 @@ impl DriverCapabilities {
 /// Vector format driver definition
 #[derive(Debug, Clone)]
 pub struct Driver {
-    /// Short name used in CLI (e.g., "GeoJSON")
+    /// Short name used in CLI (e.g., `GeoJSON`)
     pub short_name: &'static str,
-    /// Long descriptive name (e.g., "GeoJSON")
+    /// Long descriptive name (e.g., `GeoJSON`)
     pub long_name: &'static str,
     /// Supported operations
     pub capabilities: DriverCapabilities,
@@ -66,6 +76,7 @@ pub struct Driver {
 
 impl Driver {
     /// Create a new driver definition
+    #[must_use]
     pub const fn new(
         short_name: &'static str,
         long_name: &'static str,
@@ -82,8 +93,10 @@ impl Driver {
 }
 
 /// Registry of all supported vector drivers
+#[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn get_drivers() -> Vec<Driver> {
-    use SupportStatus::*;
+    use SupportStatus::{NotSupported, Planned, Supported};
 
     vec![
         // Core formats - Phase 2 implementation
@@ -513,6 +526,7 @@ pub fn get_drivers() -> Vec<Driver> {
 }
 
 /// Get all drivers that have at least one supported operation
+#[must_use]
 pub fn get_available_drivers() -> Vec<Driver> {
     get_drivers()
         .into_iter()
@@ -521,6 +535,7 @@ pub fn get_available_drivers() -> Vec<Driver> {
 }
 
 /// Find a driver by its short name (case-insensitive)
+#[must_use]
 pub fn find_driver(name: &str) -> Option<Driver> {
     get_drivers()
         .into_iter()
@@ -528,6 +543,7 @@ pub fn find_driver(name: &str) -> Option<Driver> {
 }
 
 /// List all drivers that support a specific capability
+#[must_use]
 pub fn list_drivers_with_capability(read: bool, write: bool, info: bool) -> Vec<Driver> {
     get_drivers()
         .into_iter()
@@ -541,9 +557,10 @@ pub fn list_drivers_with_capability(read: bool, write: bool, info: bool) -> Vec<
 }
 
 /// Get all driver short names as a sorted list
+#[must_use]
 pub fn get_driver_names() -> Vec<&'static str> {
     let mut names: Vec<_> = get_drivers().iter().map(|d| d.short_name).collect();
-    names.sort();
+    names.sort_unstable();
     names
 }
 

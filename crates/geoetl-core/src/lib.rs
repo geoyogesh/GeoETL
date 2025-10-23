@@ -1,16 +1,11 @@
+//! `geoetl-core` is the core library for the GeoETL project, providing fundamental functionalities
+//! for geospatial data processing.
+//!
+//! This crate includes:
+//! - **Driver Registry**: A static registry of supported geospatial data formats and their capabilities.
+//! - **Data Structures**: Core data structures for representing geospatial features and geometries (planned).
+//! - **ETL Operations**: Core Extract, Transform, Load operations (planned).
+//!
+//! The `drivers` module exposes the static driver registry consumed by the CLI and other parts of the system.
+
 pub mod drivers;
-
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}

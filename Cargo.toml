@@ -10,6 +10,8 @@ authors = ["Yogesh Dhanapal"]
 description = "Modern vector geospatial ETL in Rust. 5-10x faster than GDAL with distributed processing support."
 documentation = "https://geoetl.com"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/geoetl/geoetl"
 
 [workspace.dependencies]
 clap = "4.5.20"

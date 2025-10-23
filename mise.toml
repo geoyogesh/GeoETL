@@ -1,2 +1,18 @@
 [tools]
 rust = "1.90.0"
+
+[tasks.fmt]
+description = "Format the entire workspace with rustfmt"
+run = "cargo fmt --all"
+
+[tasks.lint]
+description = "Run clippy across the workspace"
+run = "cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic"
+
+[tasks.test]
+description = "Execute workspace tests"
+run = "cargo test --workspace --all-targets"
+
+[tasks.check]
+description = "Run formatting, linting, and tests"
+depends = ["fmt", "lint", "test"]

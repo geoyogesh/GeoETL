@@ -1,15 +1,19 @@
 [package]
 name = "geoetl-cli"
 version.workspace = true
-authors.workspace = true
-description.workspace = true
-documentation.workspace = true
 edition.workspace = true
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
-geoetl-core = { path = "../geoetl-core" }
+anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
-anyhow = { workspace = true }
-tabled = { workspace = true }
+tabled = { workspace = true, features = ["derive"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+geoetl-core = { path = "../geoetl-core" }
+
+[package.metadata.docs.rs]
+# Configure docs.rs to build documentation for this crate
+# For more options, see https://docs.rs/about/builds#build-script-options
+rustdoc-args = ["--cfg", "docsrs"]

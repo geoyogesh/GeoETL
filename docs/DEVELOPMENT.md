@@ -39,7 +39,11 @@ Or manually ensure you have Rust 1.90.0 installed.
 
 Format, lint, and run the CLI in one command:
 ```bash
-cargo fmt --all && cargo clippy --workspace --all-targets --all-features && cargo run -p geoetl-cli
+cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic && cargo run -p geoetl-cli
+```
+Or use the consolidated helper:
+```bash
+mise run check
 ```
 
 ### Code Formatting
@@ -51,26 +55,26 @@ cargo fmt --all
 
 Check formatting without making changes:
 ```bash
-cargo fmt --check
+cargo fmt --all --check
 ```
 
 ### Linting
 
 Run Clippy on all targets:
 ```bash
-cargo clippy --all-targets --all-features
+cargo clippy --workspace --all-targets -- -D clippy::pedantic
 ```
 
 Treat warnings as errors (CI mode):
 ```bash
-cargo clippy --all-targets --all-features -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic
 ```
 
 ### Testing
 
 Run all tests:
 ```bash
-cargo test
+cargo test --workspace --all-targets
 ```
 
 Test specific crate:
@@ -124,26 +128,38 @@ cargo check
 
 Before committing code, ensure:
 
-1. Code is formatted: `cargo fmt`
-2. No Clippy warnings: `cargo clippy --all-targets --all-features -- -D warnings`
-3. All tests pass: `cargo test`
+1. Code is formatted: `cargo fmt --all`
+2. No Clippy warnings: `cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic`
+3. All tests pass: `cargo test --workspace --all-targets`
 4. Documentation builds: `cargo doc --no-deps`
 
 All in one command:
 ```bash
-cargo fmt && cargo clippy --all-targets --all-features -- -D warnings && cargo test
+cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic && cargo test --workspace --all-targets
+```
+
+### mise Tasks
+
+Common workflows are available through mise:
+```bash
+mise run fmt    # rustfmt across the workspace
+mise run lint   # clippy with pedantic warnings denied
+mise run test   # workspace tests
+mise run check  # fmt + lint + test
 ```
 
 ## Documentation
 
-Build documentation:
+Generate and open documentation for all crates:
 ```bash
-cargo doc --no-deps --open
+cargo doc --open
 ```
+
+The generated documentation can be found in `target/doc/`.
 
 Build with private items:
 ```bash
-cargo doc --no-deps --document-private-items --open
+cargo doc --document-private-items --open
 ```
 
 ## Troubleshooting
