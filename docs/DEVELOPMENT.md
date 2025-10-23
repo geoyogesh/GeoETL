@@ -2,6 +2,12 @@
 
 This document provides guidelines and commands for developing geoetl.
 
+## Documentation
+
+- [User Guide](USERGUIDE.md) - Complete guide to using GeoETL CLI
+- [Vision](VISION.md) - Project vision and roadmap
+- [Development Guide](DEVELOPMENT.md) - This document
+
 ## Prerequisites
 
 - Rust 1.90.0 or later

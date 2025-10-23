@@ -13,3 +13,7 @@ edition = "2024"
 
 [workspace.dependencies]
 clap = "4.5.20"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+anyhow = "1.0.91"
+tabled = "0.17.0"

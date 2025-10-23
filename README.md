@@ -44,15 +44,35 @@ To become the modern standard for vector spatial data processing, empowering use
 
 GeoETL is in active early development. We are currently establishing the core architecture and foundational components.
 
-### Supported Formats (Planned)
+### Supported Drivers
 
-**Vector Formats**:
-- GeoParquet (priority)
-- GeoJSON
+**68+ vector format drivers** including:
+
+**Core Formats**:
+- GeoJSON, GeoJSONSeq
+- ESRI Shapefile
+- GeoPackage (GPKG)
 - FlatGeobuf
-- GeoPackage
-- Shapefile
-- GML, KML
+- (Geo)Parquet
+- (Geo)Arrow IPC
+
+**Databases**:
+- PostgreSQL/PostGIS
+- MySQL, SQLite/Spatialite
+- Oracle Spatial, MongoDB
+- Microsoft SQL Server
+
+**CAD & Engineering**:
+- AutoCAD DXF, DWG
+- Microstation DGN
+- ESRI File Geodatabase
+
+**Web Services**:
+- OGC WFS, OGC API - Features
+- Carto, Elasticsearch
+- Google Earth Engine
+
+...and many more! See `geoetl-cli drivers --detailed` for the complete list.
 
 ## Quick Start
 
@@ -81,21 +101,30 @@ cargo run -p geoetl-cli
 ### Basic Usage
 
 ```bash
-# Convert between formats
-geoetl convert input.geojson output.parquet
+# List available drivers (2 currently supported: GeoJSON, Parquet)
+geoetl-cli drivers
 
-# Apply spatial operations
-geoetl transform --operation buffer --distance 100m input.geojson output.geojson
+# Convert between formats (command structure implemented, I/O in Phase 2)
+geoetl-cli convert \
+  -i input.geojson \
+  -o output.parquet \
+  --input-driver GeoJSON \
+  --output-driver Parquet
 
-# Analyze spatial data
-geoetl analyze --stats input.geojson
+# Get dataset information
+geoetl-cli info data.geojson
+geoetl-cli info --detailed --stats data.shp
 
-# Distributed processing
-geoetl distributed --cluster config.yaml convert large-dataset.geojson
+# Enable verbose logging
+geoetl-cli -v convert -i input.geojson -o output.parquet
 ```
+
+**Note**: Core I/O functionality (convert, info) is currently in Phase 2 development. The CLI framework, driver registry, and logging are fully implemented.
 
 ## Documentation
 
+- **[User Guide](docs/USERGUIDE.md)**: Complete guide to using GeoETL CLI with examples
+- **[Quick Reference](docs/QUICKREF.md)**: Fast command reference and cheat sheet
 - **[Vision Document](docs/VISION.md)**: Project vision, goals, and strategic roadmap
 - **[Development Guide](docs/DEVELOPMENT.md)**: Setup, workflow, and contribution guidelines
 - **[Architecture Decision Records](docs/adr/)**: Detailed technical design decisions
@@ -145,15 +174,19 @@ See the [Development Guide](docs/DEVELOPMENT.md) for comprehensive development i
 
 ## Roadmap
 
-### Phase 1: Foundation (Q1 2026)
+### Phase 1: Foundation (Q1 2026 - Current)
 - ✅ Workspace structure
 - ✅ Vision and architecture documentation
-- ⏳ CLI framework with clap
+- ✅ CLI framework with clap (argument parsing, logging)
+- ✅ Driver registry (68+ GDAL-compatible drivers)
+- ✅ CLI command structure (convert, info, drivers)
+- ✅ Tabled-based output formatting
 - ⏳ DataFusion integration
-- ⏳ Basic vector I/O (GeoJSON, GeoParquet)
+- ⏳ Basic vector I/O implementation (GeoJSON, Parquet)
 
 ### Phase 2: Core Functionality (Q2 2026)
-- Vector format expansion
+- Vector I/O implementation (read/write operations)
+- Driver auto-detection from file extensions
 - Core spatial operations
 - CRS transformations
 - Performance benchmarking

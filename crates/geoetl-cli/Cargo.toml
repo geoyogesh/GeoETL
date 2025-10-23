@@ -8,3 +8,8 @@ edition.workspace = true
 
 [dependencies]
 geoetl-core = { path = "../geoetl-core" }
+clap = { workspace = true, features = ["derive"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+anyhow = { workspace = true }
+tabled = { workspace = true }
