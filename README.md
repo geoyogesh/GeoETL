@@ -254,6 +254,7 @@ GeoETL builds on the shoulders of giants:
 
 - The [GeoRust](https://github.com/georust) community for excellent geospatial libraries
 - The [Apache Arrow](https://arrow.apache.org/) project for DataFusion and Arrow
+- The [GeoArrow](https://geoarrow.org/) ecosystem for geospatial data in Arrow format
 - The [GDAL](https://gdal.org/) project for decades of geospatial innovation
 - The [Rust](https://www.rust-lang.org/) community for an amazing language and ecosystem
 

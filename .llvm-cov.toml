@@ -1,0 +1,20 @@
+# cargo-llvm-cov configuration
+# See: https://github.com/taiki-e/cargo-llvm-cov
+
+# Default output directory for coverage reports
+# HTML reports: target/llvm-cov/html/index.html
+# LCOV reports: lcov.info (root directory when using coverage-lcov task)
+
+# Exclude specific files or patterns from coverage
+# Example patterns:
+# - "*/tests/*" - Exclude all test files
+# - "*/benches/*" - Exclude benchmark files
+# - "build.rs" - Exclude build scripts
+exclude = [
+    # Add patterns here to exclude from coverage
+]
+
+# Fail if coverage falls below these thresholds
+fail-under-lines = 80
+fail-under-functions = 80
+fail-under-regions = 80

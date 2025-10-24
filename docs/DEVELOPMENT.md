@@ -175,6 +175,56 @@ Run tests with output:
 cargo test -- --nocapture
 ```
 
+### Code Coverage
+
+The project uses `cargo-llvm-cov` for code coverage analysis.
+
+#### Install cargo-llvm-cov
+
+```bash
+cargo install cargo-llvm-cov
+rustup component add llvm-tools-preview
+```
+
+#### Generate Coverage Reports
+
+Show coverage summary table in terminal (used by `mise run check`):
+```bash
+mise run coverage
+```
+This displays a summary table with pass/fail status, without verbose line-by-line details.
+
+Generate and open detailed coverage report in browser:
+```bash
+mise run coverage-open
+```
+This generates a full HTML report with line-by-line coverage highlighting.
+
+Or use cargo commands directly:
+
+```bash
+# HTML report (opens automatically)
+cargo llvm-cov --workspace --all-targets --open --fail-under-lines 80
+
+# HTML report (manual open at target/llvm-cov/html/index.html)
+cargo llvm-cov --workspace --all-targets --html --fail-under-lines 80
+
+# Detailed text output with line-by-line coverage
+cargo llvm-cov --workspace --all-targets --text --fail-under-lines 80
+
+# LCOV format (for CI/CD integration)
+cargo llvm-cov --workspace --all-targets --lcov --output-path lcov.info --fail-under-lines 80
+
+# Clean coverage artifacts
+cargo llvm-cov clean
+```
+
+#### Coverage Reports Location
+
+- HTML reports: `target/llvm-cov/html/index.html`
+- LCOV reports: `lcov.info` (root directory)
+- Coverage artifacts are automatically excluded from git via `.gitignore`
+
 ### Running
 
 Run the CLI:
@@ -272,22 +322,35 @@ Before committing code, ensure:
 2. No Clippy warnings: `cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic`
 3. All tests pass: `cargo test --workspace --all-targets`
 4. Documentation builds: `cargo doc --no-deps`
-5. License and security checks pass: `cargo deny check`
+5. License and security checks pass: `cargo audit && cargo deny check`
+6. Code coverage is adequate: `cargo llvm-cov --workspace --all-targets --text --fail-under-lines 80`
 
-All in one command:
+All in one command using mise:
 ```bash
-cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic && cargo test --workspace --all-targets && cargo deny check
+mise run check
+```
+
+Or using cargo commands directly:
+```bash
+cargo fmt --all && \
+cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic && \
+cargo test --workspace --all-targets && \
+cargo audit && \
+cargo deny check && \
+cargo llvm-cov --workspace --all-targets --open --fail-under-lines 80
 ```
 
 ### mise Tasks
 
 Common workflows are available through mise:
 ```bash
-mise run fmt      # rustfmt across the workspace
-mise run lint     # clippy with pedantic warnings denied
-mise run test     # workspace tests
-mise run check    # fmt + lint + test
-mise run security # cargo audit + cargo deny check
+mise run fmt           # rustfmt across the workspace
+mise run lint          # clippy with pedantic warnings denied
+mise run test          # workspace tests
+mise run security      # cargo audit + cargo deny check
+mise run coverage      # generate coverage summary (text)
+mise run coverage-open # generate and open coverage report in browser
+mise run check         # fmt + lint + test + security + coverage (complete CI check)
 ```
 
 ## Documentation

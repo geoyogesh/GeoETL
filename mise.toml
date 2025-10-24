@@ -13,9 +13,26 @@ run = "cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic
 description = "Execute workspace tests"
 run = "cargo test --workspace --all-targets"
 
+[tasks.coverage]
+description = "Generate code coverage summary (text)"
+run = """
+echo "Running coverage analysis..."
+cargo llvm-cov --workspace --all-targets --fail-under-lines 80 2>&1 | grep -A 50 "^Filename" | tail -20 || {
+    EXIT_CODE=$?
+    echo "❌ Coverage check failed (threshold: 80%)"
+    exit $EXIT_CODE
+}
+echo "✅ Coverage check passed (≥80%)"
+cargo llvm-cov --workspace --all-targets --fail-under-lines 80
+"""
+
+[tasks.coverage-open]
+description = "Generate and open code coverage report in browser"
+run = "cargo llvm-cov --workspace --all-targets --open --fail-under-lines 80"
+
 [tasks.check]
-description = "Run formatting, linting, and tests"
-depends = ["fmt", "lint", "test"]
+description = "Run formatting, linting, tests, security, and coverage"
+depends = ["fmt", "lint", "test", "security", "coverage"]
 
 [tasks.security]
 description = "Run security audit and license checks"
