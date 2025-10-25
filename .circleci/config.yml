@@ -142,11 +142,20 @@ jobs:
             - cargo-cache-v1-{{ checksum "Cargo.lock" }}
             - cargo-cache-v1-
       - run:
-          name: Install cargo-audit
-          command: cargo install cargo-audit
-      - run:
-          name: Install cargo-deny
-          command: cargo install cargo-deny
+          name: Install security tools if not cached
+          command: |
+            if ! command -v cargo-audit &> /dev/null; then
+              echo "Installing cargo-audit"
+              cargo install cargo-audit
+            else
+              echo "cargo-audit is already cached"
+            fi
+            if ! command -v cargo-deny &> /dev/null; then
+              echo "Installing cargo-deny"
+              cargo install cargo-deny
+            else
+              echo "cargo-deny is already cached"
+            fi
       - run:
           name: Run security audit
           command: cargo audit
@@ -158,6 +167,7 @@ jobs:
           paths:
             - ~/.cargo/registry
             - ~/.cargo/git
+            - ~/.cargo/bin
             - target
 
 # Define workflows
