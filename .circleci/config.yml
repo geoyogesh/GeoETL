@@ -166,16 +166,11 @@ workflows:
     jobs:
       - format
       - lint
-      - build:
-          requires:
-            - format
-            - lint
+      - security
+      - build
       - test:
           requires:
             - build
       - coverage:
-          requires:
-            - test
-      - security:
           requires:
             - test
