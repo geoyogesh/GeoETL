@@ -8,8 +8,9 @@ This guide is for developers who want to contribute to GeoETL or build it from s
 - [Project Structure](#project-structure)
 - [Setup](#setup)
   - [Pre-commit Hooks](#pre-commit-hooks-optional)
-- [Development Workflow](#development-workflow)
 - [Docker Development Environment](#docker-based-workflow)
+- [Testing CI Pipeline Locally](#testing-ci-pipeline-locally)
+- [Development Workflow](#development-workflow)
 - [License and Security Checks](#license-and-security-checks)
 - [Pre-Commit Checklist](#pre-commit-checklist)
 - [Documentation](#documentation)
@@ -119,6 +120,103 @@ docker compose --profile test run --rm geoetl-test
 ```
 
 Both services share cached cargo volumes (`cargo-target`, `cargo-registry`, `cargo-git`) for faster incremental builds. Stop containers with `docker compose down`.
+
+## Testing CI Pipeline Locally
+
+The project uses CircleCI for continuous integration. You can test the CI pipeline locally before pushing changes using the CircleCI CLI.
+
+### Install CircleCI CLI
+
+**macOS:**
+```bash
+brew install circleci
+```
+
+**Linux:**
+```bash
+curl -fLSs https://raw.githubusercontent.com/CircleCI-public/circleci-cli/master/install.sh | bash
+```
+
+**Other platforms:** See [CircleCI CLI documentation](https://circleci.com/docs/local-cli/)
+
+### Validate Configuration
+
+Check if your `.circleci/config.yml` is valid:
+```bash
+circleci config validate
+```
+
+### Run Individual Jobs
+
+The CircleCI pipeline includes the following jobs:
+
+**Format Check:**
+```bash
+circleci local execute format
+```
+Runs `cargo fmt --all -- --check` to verify code formatting.
+
+**Lint Check:**
+```bash
+circleci local execute lint
+```
+Runs `cargo clippy` with strict linting rules.
+
+**Build:**
+```bash
+circleci local execute build
+```
+Builds the workspace in release mode.
+
+**Tests:**
+```bash
+circleci local execute test
+```
+Runs all workspace tests.
+
+**Coverage:**
+```bash
+circleci local execute coverage
+```
+Generates code coverage reports and enforces 80% minimum coverage threshold.
+
+**Security:**
+```bash
+circleci local execute security
+```
+Runs `cargo audit` and `cargo deny check` for security vulnerabilities and license compliance.
+
+### Test Results Summary
+
+All jobs run in a `rust:1.90.0` Docker container. Expected results:
+- **format**: Code formatting validation
+- **lint**: No clippy warnings with pedantic rules
+- **build**: Successful workspace compilation in ~7-8 seconds
+- **test**: All unit tests passing (currently 5 tests in geoetl-core)
+- **coverage**: Minimum 80% line coverage (currently ~80-95%)
+- **security**: No vulnerabilities or license violations
+
+### Limitations of Local Execution
+
+When running CircleCI jobs locally, note:
+- **Cache operations**: Cache save/restore shows "not supported" errors (expected)
+- **Workspace persistence**: Cross-job artifacts aren't shared locally
+- **Platform warnings**: Architecture mismatches (arm64 vs amd64) are expected on Apple Silicon
+- **Workflows**: Local execution runs individual jobs, not full workflows with dependencies
+
+These limitations don't affect the actual CI behavior in CircleCI cloud.
+
+### CI/CD Pipeline
+
+The full pipeline runs automatically on push and includes:
+1. **format** - Code formatting check
+2. **lint** - Linting with clippy
+3. **build** - Compilation (requires format + lint)
+4. **test** - Test suite (requires build)
+5. **coverage** - Code coverage analysis (requires test)
+6. **security** - Security audit (requires test)
+
+Jobs run in parallel where possible to optimize CI time.
 
 ## Development Workflow
 

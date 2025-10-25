@@ -15,16 +15,7 @@ run = "cargo test --workspace --all-targets"
 
 [tasks.coverage]
 description = "Generate code coverage summary (text)"
-run = """
-echo "Running coverage analysis..."
-cargo llvm-cov --workspace --all-targets --fail-under-lines 80 2>&1 | grep -A 50 "^Filename" | tail -20 || {
-    EXIT_CODE=$?
-    echo "❌ Coverage check failed (threshold: 80%)"
-    exit $EXIT_CODE
-}
-echo "✅ Coverage check passed (≥80%)"
-cargo llvm-cov --workspace --all-targets --fail-under-lines 80
-"""
+run = "cargo llvm-cov --workspace --all-targets --fail-under-lines 80"
 
 [tasks.coverage-open]
 description = "Generate and open code coverage report in browser"
