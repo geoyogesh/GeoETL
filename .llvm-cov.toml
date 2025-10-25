@@ -11,7 +11,7 @@
 # - "*/benches/*" - Exclude benchmark files
 # - "build.rs" - Exclude build scripts
 exclude = [
-    # Add patterns here to exclude from coverage
+  # Add patterns here to exclude from coverage
 ]
 
 # Fail if coverage falls below these thresholds

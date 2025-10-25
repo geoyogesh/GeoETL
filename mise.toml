@@ -1,9 +1,13 @@
 [tools]
 rust = "1.90.0"
+"cargo:taplo-cli" = "latest"
 
 [tasks.fmt]
-description = "Format the entire workspace with rustfmt"
-run = "cargo fmt --all"
+description = "Format Rust code and TOML files"
+run = """
+cargo fmt --all
+taplo format
+"""
 
 [tasks.lint]
 description = "Run clippy across the workspace"

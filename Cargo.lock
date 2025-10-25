@@ -117,6 +117,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
+name = "datafusion-csv"
+version = "0.1.0"
+
+[[package]]
+name = "datafusion-flatgeobuf"
+version = "0.1.0"
+
+[[package]]
+name = "datafusion-geojson"
+version = "0.1.0"
+
+[[package]]
+name = "datafusion-geoparquet"
+version = "0.1.0"
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -140,6 +156,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
 ]
+
+[[package]]
+name = "geoetl-formats"
+version = "0.1.0"
+
+[[package]]
+name = "geoetl-operations"
+version = "0.1.0"
 
 [[package]]
 name = "heck"

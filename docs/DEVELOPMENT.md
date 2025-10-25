@@ -85,7 +85,8 @@ prek install
 ```
 
 The hooks will now run automatically on `git commit`. They will:
-- Auto-format code with `cargo fmt`
+- Auto-format Rust code with `cargo fmt`
+- Auto-format TOML files with `taplo format`
 - Check for lint warnings with `cargo clippy`
 - Run tests with `cargo test`
 - Verify licenses and dependencies with `cargo deny`
@@ -348,14 +349,18 @@ mise run check
 
 ### Code Formatting
 
-Format all code:
+Format all Rust code and TOML files:
 ```bash
+mise run fmt
+# or manually:
 cargo fmt --all
+taplo format
 ```
 
 Check formatting without making changes:
 ```bash
 cargo fmt --all --check
+taplo format --check
 ```
 
 ### Linting
@@ -557,7 +562,7 @@ cargo llvm-cov --workspace --all-targets --open --fail-under-lines 80
 
 Common workflows are available through mise:
 ```bash
-mise run fmt           # rustfmt across the workspace
+mise run fmt           # Format Rust code (cargo fmt) and TOML files (taplo)
 mise run lint          # clippy with pedantic warnings denied
 mise run test          # workspace tests
 mise run security      # cargo audit + cargo deny check

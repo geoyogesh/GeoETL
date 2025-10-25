@@ -1,6 +1,14 @@
 # geoetl/Cargo.toml
 [workspace]
-members = [ "crates/geoetl-cli","crates/geoetl-core"
+members = [
+  "crates/formats/datafusion-csv",
+  "crates/formats/datafusion-flatgeobuf",
+  "crates/formats/datafusion-geojson",
+  "crates/formats/datafusion-geoparquet",
+  "crates/geoetl-cli",
+  "crates/geoetl-core",
+  "crates/geoetl-formats",
+  "crates/geoetl-operations",
 ]
 resolver = "3"
 
