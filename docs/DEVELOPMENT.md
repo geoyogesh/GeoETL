@@ -106,7 +106,11 @@ git commit --no-verify
 
 ### Docker-Based Workflow
 
-The repository includes a containerized development environment for consistent tooling:
+The repository includes multiple containerized environments for different use cases:
+
+#### Development Containers
+
+Development environment with full Rust toolchain for consistent tooling:
 
 ```bash
 # Start the watcher-driven dev container (fmt + clippy + tests on change)
@@ -120,6 +124,117 @@ docker compose --profile test run --rm geoetl-test
 ```
 
 Both services share cached cargo volumes (`cargo-target`, `cargo-registry`, `cargo-git`) for faster incremental builds. Stop containers with `docker compose down`.
+
+#### Production Build (Multi-Stage)
+
+The production Docker setup uses a multi-stage build to create a minimal runtime container that replicates real-world deployment scenarios where the CLI runs completely standalone without any build dependencies.
+
+**Architecture:**
+
+1. **Builder Stage**: Full Rust toolchain (~2.5GB)
+   - Compiles CLI with all dependencies
+   - Optimizes and strips debug symbols
+   - Verifies binary execution
+
+2. **Runtime Stage**: Minimal container (~140MB)
+   - Contains only the compiled CLI binary
+   - Only core system libraries (glibc, libgcc) - all other deps statically linked
+   - No additional packages installed - fully self-contained binary
+   - No build tools, no source code, no Rust compiler
+   - Runs as non-root user for security
+
+**Usage:**
+
+```bash
+# Build the production container
+docker compose -f docker/docker-compose.yml --profile prod build geoetl-cli
+
+# Run with default command (--help)
+docker compose -f docker/docker-compose.yml --profile prod up geoetl-cli
+
+# Run with custom command
+docker compose -f docker/docker-compose.yml --profile prod run --rm geoetl-cli --version
+
+# Test that binary runs without build dependencies (check linked libraries)
+docker compose -f docker/docker-compose.yml --profile prod run --rm --entrypoint=/bin/bash geoetl-cli -c "ldd /usr/local/bin/geoetl"
+# Expected output shows only core system libraries (all other deps statically linked):
+#   linux-vdso.so.1 (kernel virtual library)
+#   libgcc_s.so.1 (GCC runtime)
+#   libc.so.6 (GNU C library)
+#   /lib/ld-linux-aarch64.so.1 (dynamic linker)
+```
+
+**Container Types:**
+
+| Container | Size | Contents | Use Case |
+|-----------|------|----------|----------|
+| `geoetl-dev` | ~2.5GB | Full Rust toolchain + dev tools | Development & testing |
+| `geoetl-builder` | ~2.5GB | Build stage artifacts | CI/CD builds |
+| `geoetl-cli` | ~140MB | Self-contained CLI binary only | Production deployment |
+
+**Multi-Architecture Builds:**
+
+```bash
+# Build for ARM64 (Apple Silicon, ARM servers)
+docker buildx build --platform linux/arm64 -f docker/prod/Dockerfile -t geoetl/cli:arm64 .
+
+# Build for AMD64 (x86_64)
+docker buildx build --platform linux/amd64 -f docker/prod/Dockerfile -t geoetl/cli:amd64 .
+
+# Build multi-arch
+docker buildx build --platform linux/amd64,linux/arm64 -f docker/prod/Dockerfile -t geoetl/cli:latest .
+```
+
+**Security Features:**
+- Non-root user execution (UID 1000)
+- Minimal attack surface
+- No build tools in runtime container
+- Stripped binary (no debug symbols)
+- Latest security patches
+
+**Testing the Production Build:**
+
+Verify the production container works as expected:
+
+```bash
+# Build the production container
+docker compose -f docker/docker-compose.yml --profile prod build geoetl-cli
+
+# Test CLI version
+docker run --rm geoetl/cli:latest --version
+# Expected: geoetl 0.1.0
+
+# Test CLI help
+docker run --rm geoetl/cli:latest --help
+# Expected: Full help output with commands (convert, info, drivers)
+
+# Check binary dependencies (should only show core system libs)
+docker run --rm --entrypoint /bin/bash geoetl/cli:latest -c 'ldd /usr/local/bin/geoetl'
+# Expected output:
+#   linux-vdso.so.1
+#   libgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1
+#   libc.so.6 => /lib/aarch64-linux-gnu/libc.so.6
+#   /lib/ld-linux-aarch64.so.1
+
+# Verify non-root user (security check)
+docker run --rm --entrypoint /bin/bash geoetl/cli:latest -c 'whoami && id'
+# Expected: geoetl, uid=1000(geoetl) gid=1000(geoetl)
+
+# Check binary size
+docker run --rm --entrypoint /bin/bash geoetl/cli:latest -c 'ls -lh /usr/local/bin/geoetl'
+# Expected: ~1.3MB (stripped and optimized)
+
+# Check container size
+docker images geoetl/cli:latest --format 'Size: {{.Size}}'
+# Expected: ~140MB
+```
+
+**What the tests verify:**
+- ✅ CLI binary is fully functional
+- ✅ Only core system libraries required (SSL, SQLite statically linked)
+- ✅ Runs as non-root user for security
+- ✅ Binary is optimized and stripped (~1.3MB)
+- ✅ Container is minimal (~140MB vs ~2.5GB dev container)
 
 ## Testing CI Pipeline Locally
 
