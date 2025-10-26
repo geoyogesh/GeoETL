@@ -1,37 +1,7 @@
 [tools]
 rust = "1.90.0"
 "cargo:taplo-cli" = "latest"
-
-[tasks.fmt]
-description = "Format Rust code and TOML files"
-run = """
-cargo fmt --all
-taplo format
-"""
-
-[tasks.lint]
-description = "Run clippy across the workspace"
-run = "cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic"
-
-[tasks.test]
-description = "Execute workspace tests"
-run = "cargo test --workspace --all-targets"
-
-[tasks.coverage]
-description = "Generate code coverage summary (text)"
-run = "cargo llvm-cov --workspace --all-targets --fail-under-lines 80"
-
-[tasks.coverage-open]
-description = "Generate and open code coverage report in browser"
-run = "cargo llvm-cov --workspace --all-targets --open --fail-under-lines 80"
-
-[tasks.check]
-description = "Run formatting, linting, tests, security, and coverage"
-depends = ["fmt", "lint", "test", "security", "coverage"]
-
-[tasks.security]
-description = "Run security audit and license checks"
-run = """
-cargo audit
-cargo deny check
-"""
+"cargo:cargo-audit" = "latest"
+"cargo:cargo-deny" = "latest"
+"cargo:cargo-llvm-cov" = "latest"
+"cargo:cargo-outdated" = "latest"

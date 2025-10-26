@@ -46,6 +46,8 @@ Install dependencies using mise (if available):
 ```bash
 mise install
 ```
+This installs Rust 1.90.0 plus the command-line tools used throughout this guide
+(`taplo`, `cargo-audit`, `cargo-deny`, `cargo-llvm-cov`, and `cargo-outdated`).
 
 Or manually ensure you have Rust 1.90.0 installed.
 
@@ -344,14 +346,14 @@ cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings -D clip
 ```
 Or use the consolidated helper:
 ```bash
-mise run check
+make check
 ```
 
 ### Code Formatting
 
 Format all Rust code and TOML files:
 ```bash
-mise run fmt
+make fmt
 # or manually:
 cargo fmt --all
 taplo format
@@ -399,6 +401,7 @@ The project uses `cargo-llvm-cov` for code coverage analysis.
 
 #### Install cargo-llvm-cov
 
+If you used `mise install`, this tool is already available. Otherwise install it manually:
 ```bash
 cargo install cargo-llvm-cov
 rustup component add llvm-tools-preview
@@ -406,15 +409,15 @@ rustup component add llvm-tools-preview
 
 #### Generate Coverage Reports
 
-Show coverage summary table in terminal (used by `mise run check`):
+Show coverage summary table in terminal (used by `make check`):
 ```bash
-mise run coverage
+make coverage
 ```
 This displays a summary table with pass/fail status, without verbose line-by-line details.
 
 Generate and open detailed coverage report in browser:
 ```bash
-mise run coverage-open
+make coverage-open
 ```
 This generates a full HTML report with line-by-line coverage highlighting.
 
@@ -485,6 +488,7 @@ The project uses `cargo-deny` to ensure license compliance, check for security v
 
 #### Install cargo-deny
 
+If you used `mise install`, this tool is already available. Otherwise install it manually:
 ```bash
 cargo install cargo-deny
 ```
@@ -495,9 +499,9 @@ cargo install cargo-deny
 cargo deny check
 ```
 
-Or use the mise task:
+Run both checks together via the Makefile target:
 ```bash
-mise security
+make security
 ```
 
 This runs both `cargo audit` (security vulnerabilities) and `cargo deny check` (licenses, bans, sources).
@@ -543,9 +547,9 @@ Before committing code, ensure:
 5. License and security checks pass: `cargo audit && cargo deny check`
 6. Code coverage is adequate: `cargo llvm-cov --workspace --all-targets --text --fail-under-lines 80`
 
-All in one command using mise:
+All in one command using make:
 ```bash
-mise run check
+make check
 ```
 
 Or using cargo commands directly:
@@ -558,17 +562,17 @@ cargo deny check && \
 cargo llvm-cov --workspace --all-targets --open --fail-under-lines 80
 ```
 
-### mise Tasks
+### Makefile Tasks
 
-Common workflows are available through mise:
+Common workflows are available through the Makefile:
 ```bash
-mise run fmt           # Format Rust code (cargo fmt) and TOML files (taplo)
-mise run lint          # clippy with pedantic warnings denied
-mise run test          # workspace tests
-mise run security      # cargo audit + cargo deny check
-mise run coverage      # generate coverage summary (text)
-mise run coverage-open # generate and open coverage report in browser
-mise run check         # fmt + lint + test + security + coverage (complete CI check)
+make fmt            # Format Rust code (cargo fmt) and TOML files (taplo)
+make lint           # clippy with pedantic warnings denied
+make test           # workspace tests
+make security       # cargo audit + cargo deny check
+make coverage       # generate coverage summary (text)
+make coverage-open  # generate and open coverage report in browser
+make check          # fmt + lint + test + security + coverage (complete CI check)
 ```
 
 ## Documentation
@@ -598,6 +602,8 @@ cargo update
 ```
 
 ### Check for outdated dependencies
+
+`mise install` provides the `cargo-outdated` command. If you skipped mise, install it with `cargo install cargo-outdated`.
 ```bash
 cargo outdated
 ```
@@ -622,7 +628,7 @@ We welcome contributions to GeoETL! Here's how to get started:
 3. **Make Changes**
    - Follow the Rust coding standards
    - Write tests for new functionality
-   - Ensure all checks pass (`mise run check`)
+   - Ensure all checks pass (`make check`)
 
 4. **Commit Your Changes**
    ```bash
