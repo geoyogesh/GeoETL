@@ -9,14 +9,15 @@ use std::sync::Arc;
 
 use arrow_schema::{Schema, SchemaRef};
 use async_trait::async_trait;
-use datafusion::datasource::file_format::FileFormat;
-use datafusion::datasource::physical_plan::FileScanConfig;
+use datafusion::datasource::file_format::{FileFormat, file_compression_type::FileCompressionType};
+use datafusion::datasource::physical_plan::{FileScanConfig, FileSource};
 use datafusion::error::Result;
-use datafusion::execution::context::SessionState;
-use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr, Statistics};
+use datafusion::physical_plan::ExecutionPlan;
+use datafusion_common::Statistics;
+use datafusion_session::Session;
 use object_store::{ObjectMeta, ObjectStore};
 
-use crate::file_source::CsvExec;
+use crate::file_source::{CsvExec, CsvFileSource};
 use crate::physical_exec;
 
 /// CSV format configuration options
@@ -133,16 +134,17 @@ impl FileFormat for CsvFormat {
         self.options.file_extension_with_dot()
     }
 
-    fn get_ext_with_compression(
-        &self,
-        _c: &datafusion::datasource::file_format::file_compression_type::FileCompressionType,
-    ) -> Result<String> {
+    fn get_ext_with_compression(&self, _c: &FileCompressionType) -> Result<String> {
         Ok(self.get_ext())
+    }
+
+    fn compression_type(&self) -> Option<FileCompressionType> {
+        None
     }
 
     async fn infer_schema(
         &self,
-        _state: &SessionState,
+        _state: &dyn Session,
         store: &Arc<dyn ObjectStore>,
         objects: &[ObjectMeta],
     ) -> Result<SchemaRef> {
@@ -168,7 +170,7 @@ impl FileFormat for CsvFormat {
 
     async fn infer_stats(
         &self,
-        _state: &SessionState,
+        _state: &dyn Session,
         _store: &Arc<dyn ObjectStore>,
         table_schema: SchemaRef,
         _object: &ObjectMeta,
@@ -179,13 +181,15 @@ impl FileFormat for CsvFormat {
 
     async fn create_physical_plan(
         &self,
-        _state: &SessionState,
+        _state: &dyn Session,
         conf: FileScanConfig,
-        _filters: Option<&Arc<dyn PhysicalExpr>>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        // Create our custom CSV execution plan
-        let exec = CsvExec::new(conf, self.options.clone());
+        let exec = CsvExec::new(conf);
         Ok(Arc::new(exec))
+    }
+
+    fn file_source(&self) -> Arc<dyn FileSource> {
+        Arc::new(CsvFileSource::new(self.options.clone())) as Arc<dyn FileSource>
     }
 }
 
@@ -202,7 +206,7 @@ mod tests {
     use super::*;
     use arrow_schema::{DataType, Field, Schema};
     use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
-    use datafusion::datasource::physical_plan::FileScanConfig;
+    use datafusion::datasource::physical_plan::FileScanConfigBuilder;
     use datafusion::execution::context::SessionContext;
     use datafusion_execution::object_store::ObjectStoreUrl;
     use object_store::ObjectStore;
@@ -297,11 +301,13 @@ mod tests {
             Field::new("name", DataType::Utf8, true),
         ]));
         let object_store_url = ObjectStoreUrl::local_filesystem();
-        let config = FileScanConfig::new(object_store_url, schema.clone());
-
         let format = CsvFormat::default();
+        let file_source = format.file_source();
+        let config =
+            FileScanConfigBuilder::new(object_store_url, schema.clone(), file_source).build();
+
         let plan = format
-            .create_physical_plan(&ctx.state(), config, None)
+            .create_physical_plan(&ctx.state(), config)
             .await
             .expect("physical plan");
 

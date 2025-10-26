@@ -8,12 +8,12 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use arrow::datatypes::SchemaRef;
-use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow_array::{ArrayRef, StringArray};
 use arrow_csv::reader::Format;
 use arrow_schema::{DataType, Field, Schema};
 use csv_async::{AsyncReaderBuilder, StringRecord as AsyncStringRecord};
+use datafusion::datasource::listing::PartitionedFile;
 use datafusion::datasource::physical_plan::{FileMeta, FileOpenFuture, FileOpener};
 use datafusion::error::{DataFusionError, Result};
 use futures::{Stream, StreamExt, TryStreamExt};
@@ -60,9 +60,9 @@ impl CsvOpener {
 }
 
 impl FileOpener for CsvOpener {
-    fn open(&self, file_meta: FileMeta) -> Result<FileOpenFuture> {
+    fn open(&self, file_meta: FileMeta, _file: PartitionedFile) -> Result<FileOpenFuture> {
         let opener = self.clone();
-        let object_store = self.object_store.clone();
+        let object_store = Arc::clone(&self.object_store);
 
         Ok(Box::pin(async move {
             let location = file_meta.location();
@@ -125,7 +125,6 @@ impl FileOpener for CsvOpener {
                     Ok(Some((batch, state)))
                 }
             })
-            .map_err(|e| ArrowError::ExternalError(Box::new(e)))
             .into_stream();
 
             Ok(Box::pin(stream) as _)

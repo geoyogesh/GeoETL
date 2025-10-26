@@ -12,17 +12,18 @@ use datafusion::datasource::TableProvider;
 use datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
 };
-use datafusion::datasource::physical_plan::FileScanConfig;
+use datafusion::datasource::physical_plan::{FileGroup, FileOpener, FileScanConfig, FileSource};
 use datafusion::error::Result;
 use datafusion::execution::TaskContext;
 use datafusion::execution::context::SessionState;
+use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionMode, ExecutionPlan, PlanProperties,
-    SendableRecordBatchStream,
+    DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties, SendableRecordBatchStream,
 };
-use datafusion_common::project_schema;
+use datafusion_common::{DataFusionError, Statistics};
 use datafusion_physical_expr::EquivalenceProperties;
+use object_store::ObjectStore;
 use object_store::http::HttpBuilder;
 use url::Url;
 
@@ -73,6 +74,118 @@ impl CsvSourceBuilder {
     /// Returns an error if the object store registration or listing table setup fails.
     pub async fn build(self, state: &SessionState) -> Result<Arc<dyn TableProvider>> {
         create_csv_table_provider(state, &self.path, self.options).await
+    }
+}
+
+/// Custom CSV file source wiring our CSV opener into `DataFusion`'s listing tables
+#[derive(Debug, Clone)]
+pub struct CsvFileSource {
+    options: CsvFormatOptions,
+    batch_size: Option<usize>,
+    schema: Option<SchemaRef>,
+    projection: Option<Vec<usize>>,
+    statistics: Option<Statistics>,
+    metrics: ExecutionPlanMetricsSet,
+}
+
+impl CsvFileSource {
+    #[must_use]
+    pub fn new(options: CsvFormatOptions) -> Self {
+        Self {
+            options,
+            batch_size: None,
+            schema: None,
+            projection: None,
+            statistics: None,
+            metrics: ExecutionPlanMetricsSet::new(),
+        }
+    }
+
+    fn resolve_schema(&self, base_config: &FileScanConfig) -> SchemaRef {
+        self.schema
+            .clone()
+            .unwrap_or_else(|| base_config.file_schema.clone())
+    }
+
+    fn resolve_projection(&self, base_config: &FileScanConfig) -> Option<Vec<usize>> {
+        self.projection
+            .clone()
+            .or_else(|| base_config.file_column_projection_indices())
+    }
+
+    fn resolve_batch_size(&self, base_config: &FileScanConfig) -> usize {
+        self.batch_size
+            .or(base_config.batch_size)
+            .unwrap_or(self.options.batch_size)
+    }
+}
+
+impl FileSource for CsvFileSource {
+    fn create_file_opener(
+        &self,
+        object_store: Arc<dyn ObjectStore>,
+        base_config: &FileScanConfig,
+        _partition: usize,
+    ) -> Arc<dyn FileOpener> {
+        let schema = self.resolve_schema(base_config);
+        let projection = self.resolve_projection(base_config);
+        let batch_size = self.resolve_batch_size(base_config);
+
+        let opener = CsvOpener::new(self.options.clone(), schema, projection, object_store)
+            .with_batch_size(batch_size);
+
+        Arc::new(opener)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn with_batch_size(&self, batch_size: usize) -> Arc<dyn FileSource> {
+        let mut source = self.clone();
+        source.batch_size = Some(batch_size);
+        Arc::new(source)
+    }
+
+    fn with_schema(&self, schema: SchemaRef) -> Arc<dyn FileSource> {
+        let mut source = self.clone();
+        source.schema = Some(schema);
+        Arc::new(source)
+    }
+
+    fn with_projection(&self, config: &FileScanConfig) -> Arc<dyn FileSource> {
+        let mut source = self.clone();
+        source.projection = config.file_column_projection_indices();
+        Arc::new(source)
+    }
+
+    fn with_statistics(&self, statistics: Statistics) -> Arc<dyn FileSource> {
+        let mut source = self.clone();
+        source.statistics = Some(statistics);
+        Arc::new(source)
+    }
+
+    fn metrics(&self) -> &ExecutionPlanMetricsSet {
+        &self.metrics
+    }
+
+    fn statistics(&self) -> datafusion_common::Result<Statistics> {
+        self.statistics.clone().ok_or_else(|| {
+            DataFusionError::Internal("CSV file source statistics not initialized".to_string())
+        })
+    }
+
+    fn file_type(&self) -> &'static str {
+        "csv"
+    }
+
+    fn fmt_extra(&self, t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        match t {
+            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+                write!(f, ", has_header={}", self.options.has_header)
+            },
+            DisplayFormatType::TreeRender => Ok(()),
+        }
     }
 }
 
@@ -163,44 +276,27 @@ fn register_http_object_store(state: &SessionState, url_str: &str) -> Result<()>
 pub struct CsvExec {
     /// File scan configuration
     config: FileScanConfig,
-    /// CSV format options
-    options: CsvFormatOptions,
-    /// Execution metrics
-    metrics: ExecutionPlanMetricsSet,
     /// Plan properties
     properties: PlanProperties,
 }
 
 impl CsvExec {
     #[must_use]
-    pub fn new(config: FileScanConfig, options: CsvFormatOptions) -> Self {
-        // Calculate the projected schema
-        let projected_schema = if let Some(ref proj) = config.projection {
-            project_schema(&config.file_schema, Some(proj)).unwrap()
-        } else {
-            config.file_schema.clone()
-        };
-
+    pub fn new(config: FileScanConfig) -> Self {
+        let projected_schema = config.projected_schema();
+        let file_groups = config.file_groups.len();
         let properties = PlanProperties::new(
-            EquivalenceProperties::new(projected_schema.clone()),
-            datafusion::physical_plan::Partitioning::UnknownPartitioning(config.file_groups.len()),
-            ExecutionMode::Bounded,
+            EquivalenceProperties::new(projected_schema),
+            datafusion::physical_plan::Partitioning::UnknownPartitioning(file_groups),
+            EmissionType::Incremental,
+            Boundedness::Bounded,
         );
 
-        Self {
-            config,
-            options,
-            metrics: ExecutionPlanMetricsSet::new(),
-            properties,
-        }
+        Self { config, properties }
     }
 
     fn projected_schema(&self) -> SchemaRef {
-        if let Some(ref proj) = self.config.projection {
-            project_schema(&self.config.file_schema, Some(proj)).unwrap()
-        } else {
-            self.config.file_schema.clone()
-        }
+        self.config.projected_schema()
     }
 }
 
@@ -208,9 +304,10 @@ impl DisplayAs for CsvExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         match t {
             DisplayFormatType::Default | DisplayFormatType::Verbose => {
-                let file_count: usize = self.config.file_groups.iter().map(Vec::len).sum();
+                let file_count: usize = self.config.file_groups.iter().map(FileGroup::len).sum();
                 write!(f, "CsvExec: file_groups={{count={file_count}}}")
             },
+            DisplayFormatType::TreeRender => Ok(()),
         }
     }
 }
@@ -251,20 +348,17 @@ impl ExecutionPlan for CsvExec {
         let object_store_url = self.config.object_store_url.clone();
         let object_store = context.runtime_env().object_store(&object_store_url)?;
 
-        let opener = CsvOpener::new(
-            self.options.clone(),
-            self.config.file_schema.clone(),
-            self.config.projection.clone(),
-            object_store,
-        )
-        .with_batch_size(self.options.batch_size);
+        let opener =
+            self.config
+                .file_source
+                .create_file_opener(object_store, &self.config, partition);
 
         // Open files using our CSV opener
         let stream = datafusion::datasource::physical_plan::FileStream::new(
             &self.config,
             partition,
             opener,
-            &self.metrics,
+            self.config.file_source.metrics(),
         )?;
 
         Ok(Box::pin(stream))
@@ -275,7 +369,7 @@ impl ExecutionPlan for CsvExec {
 mod tests {
     use super::*;
     use arrow_schema::{DataType, Field, Schema};
-    use datafusion::datasource::physical_plan::FileScanConfig;
+    use datafusion::datasource::physical_plan::FileScanConfigBuilder;
     use datafusion::execution::context::SessionContext;
     use datafusion_execution::object_store::ObjectStoreUrl;
     use std::fs::File;
@@ -347,10 +441,12 @@ mod tests {
             Field::new("name", DataType::Utf8, true),
         ]));
         let object_store_url = ObjectStoreUrl::local_filesystem();
-        let config =
-            FileScanConfig::new(object_store_url, schema.clone()).with_projection(Some(vec![1]));
+        let file_source = Arc::new(CsvFileSource::new(CsvFormatOptions::default()));
+        let config = FileScanConfigBuilder::new(object_store_url, schema.clone(), file_source)
+            .with_projection(Some(vec![1]))
+            .build();
 
-        let exec = CsvExec::new(config, CsvFormatOptions::default());
+        let exec = CsvExec::new(config);
         assert_eq!(exec.name(), "CsvExec");
         assert_eq!(exec.schema().fields().len(), 1);
         assert_eq!(exec.schema().field(0).name(), "name");

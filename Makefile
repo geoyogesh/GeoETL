@@ -2,7 +2,7 @@
 
 help:
 	@echo "Available targets:"
-	@echo "  make fmt            # Format Rust code and TOML files"
+	@echo "  make fmt            # Format code/TOML files and run cargo clippy --fix"
 	@echo "  make lint           # Run Clippy with pedantic warnings denied"
 	@echo "  make test           # Run all workspace tests"
 	@echo "  make security       # Run cargo audit and cargo deny"
@@ -13,6 +13,7 @@ help:
 fmt:
 	cargo fmt --all
 	taplo format
+	cargo clippy --fix --workspace --all-targets --allow-dirty --allow-staged
 
 lint:
 	cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic

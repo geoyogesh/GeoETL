@@ -21,6 +21,7 @@ datafusion = { workspace = true }
 datafusion-common = { workspace = true }
 datafusion-execution = { workspace = true }
 datafusion-physical-expr = { workspace = true }
+datafusion-session = { workspace = true }
 futures = { workspace = true }
 object_store = { workspace = true, features = ["http"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
