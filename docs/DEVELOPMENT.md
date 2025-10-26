@@ -20,6 +20,7 @@ This guide is for developers who want to contribute to GeoETL or build it from s
 ## Related Documentation
 
 - [User Guide](USERGUIDE.md) - Complete guide to using GeoETL CLI
+- [DataFusion Geospatial Format Integration Guide](DATAFUSION_GEOSPATIAL_FORMAT_INTEGRATION_GUIDE.md) - Implementing custom geospatial file formats with DataFusion and GeoArrow
 - [Vision](VISION.md) - Project vision and roadmap
 - [Architecture Decision Records](adr/) - Technical design decisions
 
@@ -653,6 +654,9 @@ We welcome contributions to GeoETL! Here's how to get started:
 ### Areas for Contribution
 
 - **Format Support**: Implement readers/writers for additional formats
+  - See the [DataFusion Geospatial Format Integration Guide](DATAFUSION_GEOSPATIAL_FORMAT_INTEGRATION_GUIDE.md) for a comprehensive guide on implementing custom geospatial file formats
+  - Learn about DataFusion traits (`FileFormat`, `FileSource`, `FileOpener`)
+  - Understand GeoArrow integration with the [geoarrow-rs](https://geoarrow.org/geoarrow-rs/rust/) ecosystem
 - **Spatial Operations**: Add new spatial algorithms
 - **Performance**: Optimize existing operations
 - **Documentation**: Improve docs and examples
