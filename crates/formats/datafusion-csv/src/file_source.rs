@@ -4,6 +4,7 @@
 //! using our independent CSV reader implementation.
 
 use std::any::Any;
+use std::env;
 use std::fmt;
 use std::sync::Arc;
 
@@ -23,7 +24,11 @@ use datafusion::physical_plan::{
 };
 use datafusion_common::{DataFusionError, Statistics};
 use datafusion_physical_expr::EquivalenceProperties;
+use datafusion_shared::SpatialFormatReadError;
 use object_store::ObjectStore;
+use object_store::aws::AmazonS3Builder;
+use object_store::azure::MicrosoftAzureBuilder;
+use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::http::HttpBuilder;
 use url::Url;
 
@@ -195,12 +200,9 @@ pub async fn create_csv_table_provider(
     path: &str,
     options: CsvFormatOptions,
 ) -> Result<Arc<dyn TableProvider>> {
-    // Register HTTP object store if the URL is HTTP/HTTPS
-    if path.starts_with("http://") || path.starts_with("https://") {
-        register_http_object_store(state, path)?;
-    }
-
     let table_url = ListingTableUrl::parse(path)?;
+
+    register_object_store_for_url(state, &table_url)?;
 
     // Auto-detect file extension if not explicitly set as non-csv
     let extension = if options.file_extension == ".csv" {
@@ -231,15 +233,41 @@ pub async fn create_csv_table_provider(
     Ok(Arc::new(table))
 }
 
+fn register_object_store_for_url(state: &SessionState, table_url: &ListingTableUrl) -> Result<()> {
+    let url = table_url.get_url();
+    match url.scheme() {
+        "s3" | "s3a" => register_s3_object_store(state, table_url),
+        "gs" => register_gcs_object_store(state, table_url),
+        "az" | "adl" | "azure" | "abfs" | "abfss" => register_azure_object_store(state, table_url),
+        "http" | "https" => {
+            if let Some(host) = url.host_str()
+                && is_azure_blob_host(host)
+            {
+                return register_azure_object_store(state, table_url);
+            }
+            register_http_object_store(state, url.as_str())
+        },
+        _ => Ok(()),
+    }
+}
+
 /// Register HTTP object store for the given URL
 fn register_http_object_store(state: &SessionState, url_str: &str) -> Result<()> {
     let url = Url::parse(url_str).map_err(|e| {
-        datafusion_common::DataFusionError::Execution(format!("Failed to parse URL: {e}"))
+        DataFusionError::from(SpatialFormatReadError::Parse {
+            message: format!("Failed to parse URL: {e}"),
+            position: None,
+            context: Some(url_str.to_string()),
+        })
     })?;
 
     // Extract the base URL (scheme + host + port)
     let host = url.host_str().ok_or_else(|| {
-        datafusion_common::DataFusionError::Execution("URL has no host".to_string())
+        DataFusionError::from(SpatialFormatReadError::Parse {
+            message: "URL has no host".to_string(),
+            position: None,
+            context: Some(url_str.to_string()),
+        })
     })?;
 
     let authority = if let Some(port) = url.port() {
@@ -257,9 +285,10 @@ fn register_http_object_store(state: &SessionState, url_str: &str) -> Result<()>
         .with_url(base_url.clone())
         .build()
         .map_err(|e| {
-            datafusion_common::DataFusionError::Execution(format!(
-                "Failed to create HTTP object store: {e}"
-            ))
+            DataFusionError::from(SpatialFormatReadError::Io {
+                source: std::io::Error::other(e),
+                context: Some(base_url.clone()),
+            })
         })?;
 
     // Register the object store
@@ -269,6 +298,155 @@ fn register_http_object_store(state: &SessionState, url_str: &str) -> Result<()>
         .register_object_store(&object_store_url, Arc::new(http_store));
 
     Ok(())
+}
+
+/// Register S3 object store for the given URL
+fn register_s3_object_store(state: &SessionState, table_url: &ListingTableUrl) -> Result<()> {
+    let url = table_url.get_url();
+    let url_string = url.to_string();
+    let bucket = url.host_str().ok_or_else(|| {
+        DataFusionError::from(SpatialFormatReadError::Parse {
+            message: "S3 URL has no bucket".to_string(),
+            position: None,
+            context: Some(url_string.clone()),
+        })
+    })?;
+
+    let mut builder = AmazonS3Builder::from_env()
+        .with_url(url_string.clone())
+        .with_bucket_name(bucket.to_string());
+
+    let region = env::var("AWS_REGION")
+        .or_else(|_| env::var("AWS_DEFAULT_REGION"))
+        .unwrap_or_else(|_| "us-east-1".to_string());
+    builder = builder.with_region(region);
+
+    let has_access_key = env::var("AWS_ACCESS_KEY_ID").is_ok();
+    let has_secret_key = env::var("AWS_SECRET_ACCESS_KEY").is_ok();
+    if !(has_access_key && has_secret_key) {
+        builder = builder.with_skip_signature(true);
+    }
+
+    let s3_store = builder.build().map_err(|e| {
+        DataFusionError::from(SpatialFormatReadError::Io {
+            source: std::io::Error::other(e),
+            context: Some(url_string.clone()),
+        })
+    })?;
+
+    let object_store_url = table_url.object_store();
+    state
+        .runtime_env()
+        .register_object_store(object_store_url.as_ref(), Arc::new(s3_store));
+
+    Ok(())
+}
+
+/// Register Google Cloud Storage object store for the given URL
+fn register_gcs_object_store(state: &SessionState, table_url: &ListingTableUrl) -> Result<()> {
+    let url = table_url.get_url();
+    let url_string = url.to_string();
+    let bucket = url.host_str().ok_or_else(|| {
+        DataFusionError::from(SpatialFormatReadError::Parse {
+            message: "GCS URL has no bucket".to_string(),
+            position: None,
+            context: Some(url_string.clone()),
+        })
+    })?;
+
+    let mut builder = GoogleCloudStorageBuilder::from_env()
+        .with_url(url_string.clone())
+        .with_bucket_name(bucket.to_string());
+
+    if !gcp_credentials_configured() {
+        builder = builder.with_skip_signature(true);
+    }
+
+    let gcs_store = builder.build().map_err(|e| {
+        DataFusionError::from(SpatialFormatReadError::Io {
+            source: std::io::Error::other(e),
+            context: Some(url_string.clone()),
+        })
+    })?;
+
+    let object_store_url = table_url.object_store();
+    state
+        .runtime_env()
+        .register_object_store(object_store_url.as_ref(), Arc::new(gcs_store));
+
+    Ok(())
+}
+
+/// Register Azure object store for the given URL
+fn register_azure_object_store(state: &SessionState, table_url: &ListingTableUrl) -> Result<()> {
+    let url = table_url.get_url();
+    let url_string = url.to_string();
+
+    let mut builder = MicrosoftAzureBuilder::from_env().with_url(url_string.clone());
+
+    if !azure_credentials_configured() {
+        builder = builder.with_skip_signature(true);
+    }
+
+    let azure_store = builder.build().map_err(|e| {
+        DataFusionError::from(SpatialFormatReadError::Io {
+            source: std::io::Error::other(e),
+            context: Some(url_string.clone()),
+        })
+    })?;
+
+    let object_store_url = table_url.object_store();
+    state
+        .runtime_env()
+        .register_object_store(object_store_url.as_ref(), Arc::new(azure_store));
+
+    Ok(())
+}
+
+fn is_azure_blob_host(host: &str) -> bool {
+    let host = host.to_ascii_lowercase();
+    host.ends_with("blob.core.windows.net")
+        || host.ends_with("dfs.core.windows.net")
+        || host.ends_with("blob.fabric.microsoft.com")
+        || host.ends_with("dfs.fabric.microsoft.com")
+}
+
+fn azure_credentials_configured() -> bool {
+    const AZURE_VARS: &[&str] = &[
+        "AZURE_STORAGE_CONNECTION_STRING",
+        "AZURE_STORAGE_ACCOUNT_KEY",
+        "AZURE_STORAGE_ACCESS_KEY",
+        "AZURE_STORAGE_MASTER_KEY",
+        "AZURE_STORAGE_SAS",
+        "AZURE_STORAGE_SAS_KEY",
+        "AZURE_STORAGE_BEARER_TOKEN",
+        "AZURE_STORAGE_TOKEN",
+        "AZURE_STORAGE_CLIENT_SECRET",
+        "AZURE_CLIENT_SECRET",
+        "AZURE_STORAGE_CLIENT_ID",
+        "AZURE_CLIENT_ID",
+        "AZURE_STORAGE_TENANT_ID",
+        "AZURE_TENANT_ID",
+    ];
+    any_env_var_set(AZURE_VARS)
+}
+
+fn gcp_credentials_configured() -> bool {
+    const GCP_VARS: &[&str] = &[
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "GOOGLE_SERVICE_ACCOUNT",
+        "GOOGLE_SERVICE_ACCOUNT_PATH",
+        "SERVICE_ACCOUNT",
+        "GOOGLE_SERVICE_ACCOUNT_KEY",
+        "SERVICE_ACCOUNT_KEY",
+        "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+    ];
+    any_env_var_set(GCP_VARS)
+}
+
+fn any_env_var_set(keys: &[&str]) -> bool {
+    keys.iter()
+        .any(|key| env::var(key).map(|v| !v.is_empty()).unwrap_or(false))
 }
 
 /// CSV execution plan that uses our independent CSV reader
@@ -431,6 +609,47 @@ mod tests {
             .state()
             .runtime_env()
             .object_store(ObjectStoreUrl::parse("https://example.com").unwrap());
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_register_s3_object_store_registers_store() {
+        let ctx = SessionContext::new();
+        let table_url = ListingTableUrl::parse("s3://test-bucket/data.csv").unwrap();
+        register_s3_object_store(&ctx.state(), &table_url).unwrap();
+
+        let result = ctx
+            .state()
+            .runtime_env()
+            .object_store(ObjectStoreUrl::parse("s3://test-bucket").unwrap());
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_register_gcs_object_store_registers_store() {
+        let ctx = SessionContext::new();
+        let table_url = ListingTableUrl::parse("gs://test-bucket/data.csv").unwrap();
+        register_gcs_object_store(&ctx.state(), &table_url).unwrap();
+
+        let result = ctx
+            .state()
+            .runtime_env()
+            .object_store(ObjectStoreUrl::parse("gs://test-bucket").unwrap());
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_register_azure_object_store_registers_store() {
+        let ctx = SessionContext::new();
+        let table_url = ListingTableUrl::parse(
+            "https://exampleaccount.blob.core.windows.net/container/test.csv",
+        )
+        .unwrap();
+        register_azure_object_store(&ctx.state(), &table_url).unwrap();
+
+        let result = ctx.state().runtime_env().object_store(
+            ObjectStoreUrl::parse("https://exampleaccount.blob.core.windows.net").unwrap(),
+        );
         assert!(result.is_ok());
     }
 

@@ -15,6 +15,7 @@ use datafusion::error::Result;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion_common::Statistics;
 use datafusion_session::Session;
+use geoarrow_schema::GeoArrowType;
 use object_store::{ObjectMeta, ObjectStore};
 
 use crate::file_source::{CsvExec, CsvFileSource};
@@ -33,6 +34,8 @@ pub struct CsvFormatOptions {
     pub batch_size: usize,
     /// File extension to look for (default: ".csv")
     pub file_extension: String,
+    /// Geometry column configuration
+    pub geometry_columns: Vec<GeometryColumnOptions>,
 }
 
 impl Default for CsvFormatOptions {
@@ -43,6 +46,7 @@ impl Default for CsvFormatOptions {
             schema_infer_max_rec: Some(1000),
             batch_size: 8192,
             file_extension: ".csv".to_string(),
+            geometry_columns: Vec::new(),
         }
     }
 }
@@ -89,6 +93,22 @@ impl CsvFormatOptions {
         self
     }
 
+    /// Register a geometry column parsed from a WKT column
+    #[must_use]
+    pub fn with_geometry_from_wkt(
+        mut self,
+        column: impl Into<String>,
+        geoarrow_type: GeoArrowType,
+    ) -> Self {
+        let column = column.into();
+        self.geometry_columns.push(GeometryColumnOptions {
+            field_name: column.clone(),
+            geoarrow_type,
+            source: GeometrySource::Wkt { column },
+        });
+        self
+    }
+
     /// Get file extension with leading dot
     pub(crate) fn file_extension_with_dot(&self) -> String {
         if self.file_extension.starts_with('.') {
@@ -97,6 +117,21 @@ impl CsvFormatOptions {
             format!(".{extension}", extension = self.file_extension)
         }
     }
+}
+
+/// Configuration for how a geometry column should be derived
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GeometrySource {
+    /// Parse Well-Known Text from the specified column
+    Wkt { column: String },
+}
+
+/// Geometry column configuration entry
+#[derive(Debug, Clone)]
+pub struct GeometryColumnOptions {
+    pub field_name: String,
+    pub geoarrow_type: GeoArrowType,
+    pub source: GeometrySource,
 }
 
 /// Independent CSV file format implementation

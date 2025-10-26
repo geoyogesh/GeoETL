@@ -1,4 +1,4 @@
-use arrow::record_batch::RecordBatch;
+use arrow_array::RecordBatch;
 use datafusion::prelude::*;
 use datafusion_common::Result;
 use datafusion_csv::SessionContextCsvExt;

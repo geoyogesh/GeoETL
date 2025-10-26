@@ -34,6 +34,7 @@
 
 mod file_format;
 mod file_source;
+pub mod geospatial;
 mod object_store_reader;
 mod physical_exec;
 

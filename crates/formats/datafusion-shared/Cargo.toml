@@ -1,0 +1,12 @@
+[package]
+name = "datafusion-shared"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+datafusion-common = { workspace = true }

@@ -7,6 +7,8 @@ use std::io::Cursor;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use std::collections::HashMap;
+
 use arrow_array::{ArrayRef, RecordBatch, RecordBatchOptions, StringArray};
 use arrow_csv::reader::Format;
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
@@ -14,11 +16,13 @@ use csv_async::{AsyncReaderBuilder, StringRecord as AsyncStringRecord};
 use datafusion::datasource::listing::PartitionedFile;
 use datafusion::datasource::physical_plan::{FileMeta, FileOpenFuture, FileOpener};
 use datafusion::error::{DataFusionError, Result};
+use datafusion_shared::{SourcePosition, SpatialFormatReadError};
 use futures::{Stream, StreamExt, TryStreamExt};
 use object_store::ObjectStore;
 use tokio_util::io::StreamReader;
 
-use crate::file_format::CsvFormatOptions;
+use crate::file_format::{CsvFormatOptions, GeometryColumnOptions};
+use crate::geospatial;
 
 /// CSV file opener that implements the `FileOpener` trait
 #[derive(Clone)]
@@ -64,10 +68,13 @@ impl FileOpener for CsvOpener {
 
         Ok(Box::pin(async move {
             let location = file_meta.location();
-            let get_result = object_store
-                .get(location)
-                .await
-                .map_err(|e| DataFusionError::Execution(format!("Failed to read file: {e}")))?;
+            let source_path: Arc<str> = Arc::from(location.to_string());
+            let get_result = object_store.get(location).await.map_err(|e| {
+                DataFusionError::from(SpatialFormatReadError::Io {
+                    source: std::io::Error::other(e),
+                    context: Some(source_path.to_string()),
+                })
+            })?;
 
             let byte_stream = get_result
                 .into_stream()
@@ -98,6 +105,7 @@ impl FileOpener for CsvOpener {
                 schema: output_schema,
                 record_buffer: Vec::with_capacity(batch_size),
                 opener,
+                source: Arc::clone(&source_path),
             };
 
             let stream = futures::stream::try_unfold(state, |mut state| async move {
@@ -107,8 +115,9 @@ impl FileOpener for CsvOpener {
                     match state.records.as_mut().next().await {
                         Some(Ok(record)) => state.record_buffer.push(record),
                         Some(Err(err)) => {
-                            return Err(DataFusionError::Execution(format!(
-                                "CSV parse error: {err}"
+                            return Err(DataFusionError::from(csv_error_to_spatial(
+                                &err,
+                                &state.source,
                             )));
                         },
                         None => break,
@@ -118,8 +127,12 @@ impl FileOpener for CsvOpener {
                 if state.record_buffer.is_empty() {
                     Ok(None)
                 } else {
-                    let batch =
-                        records_to_batch(&state.schema, &state.opener, &state.record_buffer)?;
+                    let batch = records_to_batch(
+                        &state.schema,
+                        &state.opener,
+                        &state.source,
+                        &state.record_buffer,
+                    )?;
                     Ok(Some((batch, state)))
                 }
             })
@@ -143,17 +156,19 @@ struct CsvReadState {
     schema: SchemaRef,
     opener: CsvOpener,
     record_buffer: Vec<AsyncStringRecord>,
+    source: Arc<str>,
 }
 
 fn records_to_batch(
     schema: &SchemaRef,
     opener: &CsvOpener,
+    source: &Arc<str>,
     records: &[AsyncStringRecord],
 ) -> Result<RecordBatch> {
     if records.is_empty() {
-        return Err(DataFusionError::Execution(
-            "No records to convert".to_string(),
-        ));
+        return Err(DataFusionError::from(SpatialFormatReadError::Other {
+            message: format!("No records to convert while reading {source}"),
+        }));
     }
 
     let column_indices: Vec<usize> = if let Some(proj) = &opener.projection {
@@ -169,14 +184,32 @@ fn records_to_batch(
             &RecordBatchOptions::new().with_row_count(Some(records.len())),
         )
         .map_err(|e| {
-            DataFusionError::Execution(format!("Failed to create empty RecordBatch: {e}"))
+            DataFusionError::from(SpatialFormatReadError::Parse {
+                message: format!("Failed to create empty RecordBatch: {e}"),
+                position: None,
+                context: Some(source.to_string()),
+            })
         });
     }
+
+    let geometry_lookup: HashMap<&str, &GeometryColumnOptions> = opener
+        .options
+        .geometry_columns
+        .iter()
+        .map(|geom| (geom.field_name.as_str(), geom))
+        .collect();
 
     let mut columns: Vec<ArrayRef> = Vec::with_capacity(column_indices.len());
 
     for &actual_idx in &column_indices {
         let field = opener.schema.field(actual_idx);
+
+        if let Some(geometry) = geometry_lookup.get(field.name().as_str()) {
+            let array = geospatial::build_geometry_column(geometry, actual_idx, records)?;
+            columns.push(array);
+            continue;
+        }
+
         let column_data: Vec<Option<&str>> = records
             .iter()
             .map(|record| record.get(actual_idx))
@@ -186,8 +219,47 @@ fn records_to_batch(
         columns.push(array);
     }
 
-    RecordBatch::try_new(schema.clone(), columns)
-        .map_err(|e| DataFusionError::Execution(format!("Failed to create RecordBatch: {e}")))
+    RecordBatch::try_new(schema.clone(), columns).map_err(|e| {
+        DataFusionError::from(SpatialFormatReadError::Parse {
+            message: format!("Failed to create RecordBatch: {e}"),
+            position: None,
+            context: Some(source.to_string()),
+        })
+    })
+}
+
+fn csv_error_to_spatial(err: &csv_async::Error, source: &Arc<str>) -> SpatialFormatReadError {
+    let mut position = SourcePosition::default();
+
+    if let Some(csv_pos) = err.position() {
+        position.line = Some(csv_pos.line());
+        position.byte_offset = Some(csv_pos.byte());
+        position.record = Some(csv_pos.record());
+    }
+
+    if let Some(field) = csv_error_field(err) {
+        position.field = Some(field);
+        position.column = Some(field);
+    }
+
+    let position = if position.is_empty() {
+        None
+    } else {
+        Some(position)
+    };
+
+    SpatialFormatReadError::Parse {
+        message: err.to_string(),
+        position,
+        context: Some(source.to_string()),
+    }
+}
+
+fn csv_error_field(err: &csv_async::Error) -> Option<u64> {
+    match err.kind() {
+        csv_async::ErrorKind::Utf8 { err, .. } => Some((err.field() as u64) + 1),
+        _ => None,
+    }
 }
 
 fn build_array(field: &Field, data: &[Option<&str>]) -> ArrayRef {
@@ -236,15 +308,24 @@ pub fn infer_schema(bytes: &[u8], options: &CsvFormatOptions) -> Result<Schema> 
 
     let (inferred_schema, _) = format
         .infer_schema(Cursor::new(bytes), options.schema_infer_max_rec)
-        .map_err(|e| DataFusionError::Execution(format!("Failed to infer schema: {e}")))?;
+        .map_err(|e| {
+            DataFusionError::from(SpatialFormatReadError::SchemaInference {
+                message: format!("Failed to infer schema: {e}"),
+                context: None,
+            })
+        })?;
 
     if inferred_schema.fields().is_empty() {
-        return Err(DataFusionError::Execution(
-            "Cannot infer schema from empty file".to_string(),
+        return Err(DataFusionError::from(
+            SpatialFormatReadError::SchemaInference {
+                message: "Cannot infer schema from empty file".to_string(),
+                context: None,
+            },
         ));
     }
 
     let schema = sanitize_schema_types(&inferred_schema);
+    let schema = apply_geometry_overrides(schema, options)?;
 
     if options.has_header {
         Ok(schema)
@@ -294,6 +375,37 @@ fn rename_fields_without_header(schema: &Schema) -> Schema {
         .map(|(idx, field)| field.as_ref().clone().with_name(format!("column_{idx}")))
         .collect();
     Schema::new_with_metadata(fields, metadata)
+}
+
+fn apply_geometry_overrides(schema: Schema, options: &CsvFormatOptions) -> Result<Schema> {
+    if options.geometry_columns.is_empty() {
+        return Ok(schema);
+    }
+
+    let mut fields: Vec<Arc<Field>> = schema.fields().iter().cloned().collect();
+    for geometry in &options.geometry_columns {
+        let position = fields
+            .iter()
+            .position(|field| field.name() == &geometry.field_name)
+            .ok_or_else(|| {
+                DataFusionError::from(SpatialFormatReadError::SchemaInference {
+                    message: format!(
+                        "Geometry column '{}' was not found in the inferred schema",
+                        geometry.field_name
+                    ),
+                    context: Some("geometry override".to_string()),
+                })
+            })?;
+
+        let nullable = fields[position].is_nullable();
+        fields[position] = Arc::new(
+            geometry
+                .geoarrow_type
+                .to_field(&geometry.field_name, nullable),
+        );
+    }
+
+    Ok(Schema::new_with_metadata(fields, schema.metadata().clone()))
 }
 
 #[cfg(test)]

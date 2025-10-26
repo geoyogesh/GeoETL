@@ -22,11 +22,15 @@ datafusion-common = { workspace = true }
 datafusion-execution = { workspace = true }
 datafusion-physical-expr = { workspace = true }
 datafusion-session = { workspace = true }
+datafusion-shared = { path = "../datafusion-shared" }
 futures = { workspace = true }
-object_store = { workspace = true, features = ["http"] }
+object_store = { workspace = true, features = ["aws", "azure", "gcp", "http"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-util = { workspace = true }
 url = { workspace = true }
+geoarrow-array = { workspace = true, features = ["geozero"] }
+geoarrow-schema = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+geo-traits = { workspace = true }
