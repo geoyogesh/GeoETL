@@ -13,9 +13,9 @@ arrow = { workspace = true }
 arrow-array = { workspace = true }
 arrow-cast = { workspace = true }
 arrow-schema = { workspace = true }
+arrow-csv = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
-csv = { workspace = true }
 csv-async = { workspace = true }
 datafusion = { workspace = true }
 datafusion-common = { workspace = true }

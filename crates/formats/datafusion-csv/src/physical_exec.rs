@@ -11,6 +11,7 @@ use arrow::datatypes::SchemaRef;
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow_array::{ArrayRef, StringArray};
+use arrow_csv::reader::Format;
 use arrow_schema::{DataType, Field, Schema};
 use csv_async::{AsyncReaderBuilder, StringRecord as AsyncStringRecord};
 use datafusion::datasource::physical_plan::{FileMeta, FileOpenFuture, FileOpener};
@@ -232,110 +233,70 @@ fn build_array(field: &Field, data: &[Option<&str>]) -> ArrayRef {
 
 /// Infer schema from CSV file with type detection
 pub fn infer_schema(bytes: &[u8], options: &CsvFormatOptions) -> Result<Schema> {
-    let cursor = Cursor::new(bytes);
-    let mut reader = csv::ReaderBuilder::new()
-        .delimiter(options.delimiter)
-        .has_headers(options.has_header)
-        .from_reader(cursor);
+    let format = Format::default()
+        .with_header(options.has_header)
+        .with_delimiter(options.delimiter);
 
-    let mut first_data_record: Option<csv::StringRecord> = None;
+    let (inferred_schema, _) = format
+        .infer_schema(Cursor::new(bytes), options.schema_infer_max_rec)
+        .map_err(|e| DataFusionError::Execution(format!("Failed to infer schema: {e}")))?;
 
-    let headers: Vec<String> = if options.has_header {
-        reader
-            .headers()
-            .map_err(|e| DataFusionError::Execution(format!("Failed to read headers: {e}")))?
-            .iter()
-            .map(str::to_string)
-            .collect()
+    if inferred_schema.fields().is_empty() {
+        return Err(DataFusionError::Execution(
+            "Cannot infer schema from empty file".to_string(),
+        ));
+    }
+
+    let schema = sanitize_schema_types(&inferred_schema);
+
+    if options.has_header {
+        Ok(schema)
     } else {
-        // Generate column names if no header
-        if let Some(Ok(record)) = reader.records().next() {
-            let column_names = (0..record.len()).map(|i| format!("column_{i}")).collect();
-            first_data_record = Some(record);
-            column_names
-        } else {
-            return Err(DataFusionError::Execution(
-                "Cannot infer schema from empty file".to_string(),
-            ));
-        }
-    };
-
-    // Sample records to infer types
-    let max_records = options.schema_infer_max_rec.unwrap_or(1000);
-    let mut sample_records: Vec<csv::StringRecord> = Vec::new();
-
-    if let Some(record) = first_data_record.filter(|_| max_records > 0) {
-        sample_records.push(record);
+        Ok(rename_fields_without_header(&schema))
     }
-
-    for result in reader.records() {
-        if sample_records.len() >= max_records {
-            break;
-        }
-        if let Ok(record) = result {
-            sample_records.push(record);
-        }
-    }
-
-    // Infer type for each column
-    let num_columns = headers.len();
-    let mut fields: Vec<Field> = Vec::with_capacity(num_columns);
-
-    for (col_idx, name) in headers.into_iter().enumerate() {
-        let data_type = infer_column_type(&sample_records, col_idx);
-        fields.push(Field::new(name, data_type, true));
-    }
-
-    Ok(Schema::new(fields))
 }
 
-/// Infer the data type of a column by sampling values
-fn infer_column_type(records: &[csv::StringRecord], col_idx: usize) -> DataType {
-    let mut has_float = false;
-    let mut has_int = false;
-    let mut has_bool = false;
-    let mut total_values = 0;
+fn sanitize_schema_types(schema: &Schema) -> Schema {
+    let metadata = schema.metadata().clone();
+    let fields: Vec<Field> = schema
+        .fields()
+        .iter()
+        .map(|field_ref| {
+            let field = field_ref.as_ref().clone();
+            let adjusted_type = match field.data_type() {
+                DataType::Boolean => DataType::Boolean,
+                DataType::Float64 | DataType::Float32 => DataType::Float64,
+                DataType::Int64
+                | DataType::Int32
+                | DataType::Int16
+                | DataType::Int8
+                | DataType::UInt64
+                | DataType::UInt32
+                | DataType::UInt16
+                | DataType::UInt8 => DataType::Int64,
+                _ => DataType::Utf8,
+            };
 
-    for record in records.iter().take(100) {
-        if let Some(value) = record.get(col_idx) {
-            let value = value.trim();
-            if value.is_empty() {
-                continue;
+            if adjusted_type == *field.data_type() {
+                field
+            } else {
+                field.with_data_type(adjusted_type)
             }
+        })
+        .collect();
 
-            total_values += 1;
+    Schema::new_with_metadata(fields, metadata)
+}
 
-            // Check if it's a boolean
-            if value.eq_ignore_ascii_case("true") || value.eq_ignore_ascii_case("false") {
-                has_bool = true;
-                continue;
-            }
-
-            // Check if it's a float
-            if value.parse::<f64>().is_ok() {
-                if value.contains('.') {
-                    has_float = true;
-                } else {
-                    has_int = true;
-                }
-            }
-        }
-    }
-
-    // Prioritize type inference: Bool > Float > Int > String
-    if total_values == 0 {
-        return DataType::Utf8;
-    }
-
-    if has_bool && !has_int && !has_float {
-        DataType::Boolean
-    } else if has_float {
-        DataType::Float64
-    } else if has_int {
-        DataType::Int64
-    } else {
-        DataType::Utf8
-    }
+fn rename_fields_without_header(schema: &Schema) -> Schema {
+    let metadata = schema.metadata().clone();
+    let fields: Vec<Field> = schema
+        .fields()
+        .iter()
+        .enumerate()
+        .map(|(idx, field)| field.as_ref().clone().with_name(format!("column_{idx}")))
+        .collect();
+    Schema::new_with_metadata(fields, metadata)
 }
 
 #[cfg(test)]
