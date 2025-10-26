@@ -7,11 +7,9 @@ use std::io::Cursor;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use arrow::datatypes::SchemaRef;
-use arrow::record_batch::RecordBatch;
-use arrow_array::{ArrayRef, StringArray};
+use arrow_array::{ArrayRef, RecordBatch, RecordBatchOptions, StringArray};
 use arrow_csv::reader::Format;
-use arrow_schema::{DataType, Field, Schema};
+use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use csv_async::{AsyncReaderBuilder, StringRecord as AsyncStringRecord};
 use datafusion::datasource::listing::PartitionedFile;
 use datafusion::datasource::physical_plan::{FileMeta, FileOpenFuture, FileOpener};
@@ -168,7 +166,7 @@ fn records_to_batch(
         return RecordBatch::try_new_with_options(
             schema.clone(),
             vec![],
-            &arrow::record_batch::RecordBatchOptions::new().with_row_count(Some(records.len())),
+            &RecordBatchOptions::new().with_row_count(Some(records.len())),
         )
         .map_err(|e| {
             DataFusionError::Execution(format!("Failed to create empty RecordBatch: {e}"))

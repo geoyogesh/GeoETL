@@ -13,7 +13,6 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 
 ignore = [
   # Add any security advisories to ignore here with justification
-  { id = "RUSTSEC-2024-0384", reason = "DataFusion only enables instant for wasm builds; geoetl targets native builds so the unmaintained crate is not compiled." },
   { id = "RUSTSEC-2024-0436", reason = "DataFusion still depends on paste; we track upstream progress and will revisit once they migrate to pastey or another maintained alternative." },
 ]
 
