@@ -9,3 +9,23 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-cast = { workspace = true }
+arrow-schema = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+csv = { workspace = true }
+csv-async = { workspace = true }
+datafusion = { workspace = true }
+datafusion-common = { workspace = true }
+datafusion-execution = { workspace = true }
+datafusion-physical-expr = { workspace = true }
+futures = { workspace = true }
+object_store = { workspace = true, features = ["http"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio-util = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
