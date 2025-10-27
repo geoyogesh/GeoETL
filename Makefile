@@ -32,3 +32,8 @@ coverage-open:
 	cargo llvm-cov --workspace --all-targets --open --fail-under-lines 80
 
 check: fmt lint test security coverage
+
+geoetl-cli-dev:
+	cargo fmt --all
+	cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic
+	cargo run -p geoetl-cli -- ${ARGS}

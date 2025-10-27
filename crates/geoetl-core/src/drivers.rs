@@ -260,7 +260,7 @@ pub fn get_drivers() -> Vec<Driver> {
         ),
         Driver::new("GPKG", "GeoPackage vector", Planned, Planned, Planned),
         Driver::new("FlatGeobuf", "FlatGeobuf", Planned, Planned, Planned),
-        Driver::new("Parquet", "(Geo)Parquet", Supported, Supported, Supported),
+        Driver::new("Parquet", "(Geo)Parquet", Planned, Planned, Planned),
         Driver::new(
             "Arrow",
             "(Geo)Arrow IPC File Format / Stream",
@@ -300,9 +300,9 @@ pub fn get_drivers() -> Vec<Driver> {
         Driver::new(
             "CSV",
             "Comma Separated Value (.csv)",
-            Planned,
-            Planned,
-            Planned,
+            Supported,
+            Supported,
+            Supported,
         ),
         Driver::new(
             "GeoRSS",
@@ -800,7 +800,7 @@ mod tests {
         // GeoJSON and Parquet are supported
         assert_eq!(drivers.len(), 2);
         assert!(drivers.iter().any(|d| d.short_name == "GeoJSON"));
-        assert!(drivers.iter().any(|d| d.short_name == "Parquet"));
+        assert!(drivers.iter().any(|d| d.short_name == "CSV"));
     }
 
     #[test]
@@ -809,7 +809,7 @@ mod tests {
         // Should have drivers with at least one Supported operation
         assert_eq!(drivers.len(), 2);
         assert!(drivers.iter().any(|d| d.short_name == "GeoJSON"));
-        assert!(drivers.iter().any(|d| d.short_name == "Parquet"));
+        assert!(drivers.iter().any(|d| d.short_name == "CSV"));
     }
 
     #[test]

@@ -7,6 +7,13 @@ license.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+datafusion-csv = { path = "../formats/datafusion-csv" }
+datafusion-geojson = { path = "../formats/datafusion-geojson" }
+datafusion = { workspace = true }
+datafusion-common = { workspace = true }
+datafusion-execution = { workspace = true }
+datafusion-physical-expr = { workspace = true }
+datafusion-session = { workspace = true }
 
 [package.metadata.docs.rs]
 # Configure docs.rs to build documentation for this crate

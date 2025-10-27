@@ -1751,11 +1751,14 @@ name = "geoetl-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "datafusion",
+ "datafusion-common",
+ "datafusion-csv",
+ "datafusion-execution",
+ "datafusion-geojson",
+ "datafusion-physical-expr",
+ "datafusion-session",
 ]
-
-[[package]]
-name = "geoetl-formats"
-version = "0.1.0"
 
 [[package]]
 name = "geoetl-operations"
