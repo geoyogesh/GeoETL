@@ -4,6 +4,28 @@
 
 This guide provides comprehensive instructions for integrating custom geospatial file formats into DataFusion, enabling efficient querying and processing of geospatial data using SQL and DataFrame APIs.
 
+### Version Compatibility
+
+This guide is based on the following versions:
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **DataFusion** | 50.1.0 | Core query engine |
+| **Arrow** | 56.0 | Columnar memory format |
+| **geoarrow-rs** | 0.6.1 | GeoArrow implementation (`geoarrow-schema`, `geoarrow-array`, `geoarrow-cast`) |
+| **object_store** | 0.12 | Storage abstraction layer |
+
+### Format-Specific Documentation
+
+For detailed usage and implementation guides for supported formats:
+
+- **CSV with WKT Geometries**: See [`docs/formats/csv-user-guide.md`](formats/csv-user-guide.md) and [`docs/formats/csv-development.md`](formats/csv-development.md)
+  - Reference Implementation: [`crates/formats/datafusion-csv`](../crates/formats/datafusion-csv/)
+- **GeoJSON**: See [`docs/formats/geojson-user-guide.md`](formats/geojson-user-guide.md) and [`docs/formats/geojson-development.md`](formats/geojson-development.md)
+  - Reference Implementation: [`crates/formats/datafusion-geojson`](../crates/formats/datafusion-geojson/)
+
+These guides provide concrete examples, API references, and best practices for working with these formats in production. The reference implementations demonstrate all concepts covered in this guide.
+
 ### What You'll Learn
 
 - How to implement DataFusion's core traits (`FileFormat`, `FileSource`, `FileOpener`)
@@ -102,15 +124,15 @@ For most format integrations, you'll need:
 ```toml
 [dependencies]
 # Option 1: Individual crates (recommended for production)
-geoarrow-schema = "0.1.0"
-geoarrow-array = "0.1.0"
-geoarrow-cast = "0.1.0"  # Optional, for type conversions
+geoarrow-schema = "0.6.1"
+geoarrow-array = "0.6.1"
+geoarrow-cast = "0.6.1"  # Optional, for type conversions
 
 # Option 2: Amalgam crate (simpler for prototyping)
-# geoarrow = "0.1.0"
+# geoarrow = "0.6.1"
 
 # Study these as references
-geoparquet = "0.1.0"  # Optional, for learning best practices
+geoparquet = "0.6.1"  # Optional, for learning best practices
 ```
 
 **Recommendation**: Start with individual crates (`geoarrow-schema`, `geoarrow-array`) for better compile times and explicit dependencies. Add `geoarrow-cast` only if you need geometry type conversions. Study `geoparquet` source code as a reference for advanced features like spatial indexing.
@@ -264,21 +286,21 @@ arrow = { version = "56.0", features = ["prettyprint"] }
 # geoarrow-schema: REQUIRED
 # Provides geometry type definitions (GeometryDataType enum) and metadata
 # You'll use this to declare geometry fields in your Arrow schema
-geoarrow-schema = "0.1.0"
+geoarrow-schema = "0.6.1"
 
 # geoarrow-array: REQUIRED
 # Provides geometry array builders (PointBuilder, LineStringBuilder, etc.)
 # This is the core crate for converting your format's geometries to Arrow arrays
-geoarrow-array = "0.1.0"
+geoarrow-array = "0.6.1"
 
 # geoarrow-cast: OPTIONAL
 # Only add if you need to convert between geometry types
 # Example: Converting heterogeneous geometries to a uniform type
-# geoarrow-cast = "0.1.0"
+# geoarrow-cast = "0.6.1"
 
 # Alternative: Use the amalgam crate instead (re-exports all three above)
 # Trade-off: Simpler but larger compile footprint
-# geoarrow = "0.1.0"
+# geoarrow = "0.6.1"
 
 # ============================================================================
 # Async utilities
@@ -301,7 +323,7 @@ simplegeo-parser = { path = "./simplegeo-parser" } # Or from crates.io
 [dev-dependencies]
 # Optional: Study geoparquet as a reference implementation
 # Uncomment to explore best practices for spatial indexing and optimization
-# geoparquet = "0.1.0"
+# geoparquet = "0.6.1"
 ```
 
 #### Dependency Selection Guide
@@ -916,99 +938,111 @@ This approach can reduce I/O dramatically when querying large files with good sp
 
 This trait provides a convenient way for users to register your format with DataFusion.
 
+#### Simplified Extension Trait Pattern (Recommended)
+
+Based on the reference implementations ([`datafusion-geojson`](../crates/formats/datafusion-geojson/src/lib.rs) and [`datafusion-csv`](../crates/formats/datafusion-csv/src/lib.rs)), here's the recommended simplified pattern:
+
 ```rust
-// src/lib.rs (or a separate extension.rs)
+// src/lib.rs
 
-use std::sync::Arc;
-use async_trait::async_trait;
-use datafusion::dataframe::DataFrame;
-use datafusion::error::Result;
-use datafusion::execution::context::{DataFilePaths, SessionContext};
-use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl};
-use datafusion::execution::options::ReadOptions;
-use datafusion::config::TableOptions;
-use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::execution::config::SessionConfig;
-use datafusion::execution::context::SessionState;
+use datafusion::prelude::*;
+use datafusion_common::Result;
 
-pub use crate::file_format::SimpleGeoFormat;
-
-#[derive(Clone)]
-pub struct SimpleGeoReadOptions<'a> {
-    pub file_extension: &'a str,
-}
-
-impl Default for SimpleGeoReadOptions<'_> {
-    fn default() -> Self {
-        Self { file_extension: "sgeo" }
-    }
-}
-
-#[async_trait]
-impl ReadOptions<'_> for SimpleGeoReadOptions<'_> {
-    fn to_listing_options(
-        &self,
-        _config: &SessionConfig,
-        _table_options: TableOptions,
-    ) -> ListingOptions {
-        ListingOptions::new(Arc::new(SimpleGeoFormat::default()))
-            .with_file_extension(self.file_extension)
-    }
-
-    async fn get_resolved_schema(
-        &self,
-        config: &SessionConfig,
-        state: SessionState,
-        table_path: ListingTableUrl,
-    ) -> Result<SchemaRef> {
-        self._get_resolved_schema(config, state, table_path, None)
-            .await
-    }
-}
-
-#[async_trait]
+/// Extension trait for [`SessionContext`] that offers convenience helpers to
+/// register or read `SimpleGeo` sources.
+#[allow(async_fn_in_trait)]
 pub trait SessionContextSimpleGeoExt {
-    fn read_simple_geo<P: DataFilePaths + Send>(
-        &self,
-        table_paths: P,
-        options: SimpleGeoReadOptions<'_>,
-    ) -> impl std::future::Future<Output = Result<DataFrame>> + Send;
+    /// Register a `SimpleGeo` dataset as a table with default options.
+    async fn register_simple_geo_file(&self, name: &str, path: &str) -> Result<()>;
 
-    fn register_simple_geo(
+    /// Register a `SimpleGeo` dataset with custom format options.
+    async fn register_simple_geo_with_options(
         &self,
         name: &str,
-        table_path: &str,
-        options: SimpleGeoReadOptions<'_>,
-    ) -> impl std::future::Future<Output = Result<()>> + Send;
+        path: &str,
+        options: SimpleGeoFormatOptions,
+    ) -> Result<()>;
+
+    /// Read a `SimpleGeo` dataset into a [`DataFrame`] with default options.
+    async fn read_simple_geo_file(&self, path: &str) -> Result<DataFrame>;
+
+    /// Read a `SimpleGeo` dataset into a [`DataFrame`] with custom format options.
+    async fn read_simple_geo_with_options(
+        &self,
+        path: &str,
+        options: SimpleGeoFormatOptions,
+    ) -> Result<DataFrame>;
 }
 
-#[async_trait]
 impl SessionContextSimpleGeoExt for SessionContext {
-    async fn read_simple_geo<P: DataFilePaths + Send>(
-        &self,
-        table_paths: P,
-        options: SimpleGeoReadOptions<'_>,
-    ) -> Result<DataFrame> {
-        let listing_options = options.to_listing_options(&self.copied_config(), self.copied_table_options());
-        let table_paths = table_paths.to_urls()?;
-        let config = ListingTableConfig::new_with_multi_paths(table_paths)
-            .with_listing_options(listing_options);
-        let provider = ListingTable::try_new(config)?;
-        self.read_table(Arc::new(provider))
+    async fn register_simple_geo_file(&self, name: &str, path: &str) -> Result<()> {
+        let options = SimpleGeoFormatOptions::default();
+        self.register_simple_geo_with_options(name, path, options).await
     }
 
-    async fn register_simple_geo(
+    async fn register_simple_geo_with_options(
         &self,
         name: &str,
-        table_path: &str,
-        options: SimpleGeoReadOptions<'_>,
+        path: &str,
+        options: SimpleGeoFormatOptions,
     ) -> Result<()> {
-        let listing_options = options.to_listing_options(&self.copied_config(), self.copied_table_options());
-        self.register_listing_table(name, table_path, listing_options, None, None)
-            .await
+        // Use your helper function to create a table provider
+        let table = create_simple_geo_table_provider(&self.state(), path, options).await?;
+        self.register_table(name, table)?;
+        Ok(())
     }
+
+    async fn read_simple_geo_file(&self, path: &str) -> Result<DataFrame> {
+        let options = SimpleGeoFormatOptions::default();
+        self.read_simple_geo_with_options(path, options).await
+    }
+
+    async fn read_simple_geo_with_options(
+        &self,
+        path: &str,
+        options: SimpleGeoFormatOptions,
+    ) -> Result<DataFrame> {
+        let table = create_simple_geo_table_provider(&self.state(), path, options).await?;
+        self.read_table(table)
+    }
+}
+
+/// Helper function to create a table provider for SimpleGeo files.
+///
+/// This function handles:
+/// - URL parsing and object store configuration
+/// - ListingTable setup with your file format
+/// - Schema inference
+pub async fn create_simple_geo_table_provider(
+    state: &SessionState,
+    path: &str,
+    options: SimpleGeoFormatOptions,
+) -> Result<Arc<dyn TableProvider>> {
+    use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl};
+
+    let table_path = ListingTableUrl::parse(path)?;
+    let file_format = Arc::new(SimpleGeoFormat::new(options));
+
+    let listing_options = ListingOptions::new(file_format)
+        .with_file_extension("sgeo");
+
+    let config = ListingTableConfig::new(table_path)
+        .with_listing_options(listing_options);
+
+    let table = ListingTable::try_new(config)?;
+    Ok(Arc::new(table))
 }
 ```
+
+**Key Advantages of This Pattern:**
+
+1. **Simpler API**: Users don't need to work with `ReadOptions` or understand internal configuration
+2. **Clear Intent**: Method names clearly indicate default vs. custom options
+3. **Easier Testing**: Direct integration with `SessionContext` makes tests straightforward
+4. **Less Boilerplate**: No need to implement `ReadOptions` trait
+5. **Better Discoverability**: IDE autocomplete shows all available methods
+
+**Note on `#[allow(async_fn_in_trait)]`**: This suppresses warnings about using async functions in traits without the `async_trait` macro. For DataFusion 50+, this is the preferred pattern since Rust now has native async trait support.
 
 ### 3.8. Usage Examples
 
@@ -1018,18 +1052,14 @@ Now that the format is implemented, here's how users can work with SimpleGeo fil
 
 ```rust
 use datafusion::prelude::*;
-use datafusion_simplegeo::{SessionContextSimpleGeoExt, SimpleGeoReadOptions};
+use datafusion_simplegeo::SessionContextSimpleGeoExt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let ctx = SessionContext::new();
 
-    // Register a SimpleGeo file as a table
-    ctx.register_simple_geo(
-        "my_locations",
-        "data/locations.sgeo",
-        SimpleGeoReadOptions::default()
-    ).await?;
+    // Register a SimpleGeo file as a table with default options
+    ctx.register_simple_geo_file("my_locations", "data/locations.sgeo").await?;
 
     // Query using SQL
     let df = ctx.sql("SELECT name, id FROM my_locations WHERE name = 'Central Park'").await?;
@@ -1043,17 +1073,16 @@ async fn main() -> Result<()> {
 
 ```rust
 use datafusion::prelude::*;
-use datafusion_simplegeo::{SessionContextSimpleGeoExt, SimpleGeoReadOptions};
+use datafusion_simplegeo::SessionContextSimpleGeoExt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let ctx = SessionContext::new();
 
     // Register a directory of SimpleGeo files
-    ctx.register_simple_geo(
+    ctx.register_simple_geo_file(
         "all_locations",
-        "data/locations/",  // Directory containing multiple .sgeo files
-        SimpleGeoReadOptions::default()
+        "data/locations/"  // Directory containing multiple .sgeo files
     ).await?;
 
     // Query across all files
@@ -1068,16 +1097,15 @@ async fn main() -> Result<()> {
 
 ```rust
 use datafusion::prelude::*;
-use datafusion_simplegeo::{SessionContextSimpleGeoExt, SimpleGeoReadOptions};
+use datafusion_simplegeo::SessionContextSimpleGeoExt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let ctx = SessionContext::new();
 
     // Read directly into a DataFrame (without registering)
-    let df = ctx.read_simple_geo(
-        "s3://my-bucket/data.sgeo",  // Works with S3, GCS, Azure, etc.
-        SimpleGeoReadOptions::default()
+    let df = ctx.read_simple_geo_file(
+        "s3://my-bucket/data.sgeo"  // Works with S3, GCS, Azure, etc.
     ).await?;
 
     // Use DataFrame API to select specific columns (projection pushdown!)
@@ -1095,23 +1123,21 @@ async fn main() -> Result<()> {
 
 ```rust
 use datafusion::prelude::*;
-use datafusion_simplegeo::{SessionContextSimpleGeoExt, SimpleGeoReadOptions};
+use datafusion_simplegeo::SessionContextSimpleGeoExt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let ctx = SessionContext::new();
 
     // The object_store integration means cloud storage works automatically
-    ctx.register_simple_geo(
+    ctx.register_simple_geo_file(
         "s3_data",
-        "s3://my-bucket/geospatial/cities.sgeo",
-        SimpleGeoReadOptions::default()
+        "s3://my-bucket/geospatial/cities.sgeo"
     ).await?;
 
-    ctx.register_simple_geo(
+    ctx.register_simple_geo_file(
         "gcs_data",
-        "gs://my-bucket/geospatial/roads.sgeo",
-        SimpleGeoReadOptions::default()
+        "gs://my-bucket/geospatial/roads.sgeo"
     ).await?;
 
     // Join data from different cloud sources
@@ -1127,21 +1153,29 @@ async fn main() -> Result<()> {
 }
 ```
 
-#### Custom File Extensions
+#### Custom Format Options
 
 ```rust
-use datafusion_simplegeo::SimpleGeoReadOptions;
+use datafusion::prelude::*;
+use datafusion_simplegeo::{SessionContextSimpleGeoExt, SimpleGeoFormatOptions};
 
-// If your files use a non-standard extension
-let options = SimpleGeoReadOptions {
-    file_extension: "custom",
-};
+#[tokio::main]
+async fn main() -> Result<()> {
+    let ctx = SessionContext::new();
 
-ctx.register_simple_geo(
-    "custom_format",
-    "data/file.custom",
-    options
-).await?;
+    // Configure custom options
+    let options = SimpleGeoFormatOptions::default()
+        .with_batch_size(8192)
+        .with_geometry_column_name("location");
+
+    ctx.register_simple_geo_with_options(
+        "custom_format",
+        "data/file.sgeo",
+        options
+    ).await?;
+
+    Ok(())
+}
 ```
 
 ### 3.9. Testing
@@ -1156,17 +1190,13 @@ mod tests {
     use super::*;
     use datafusion::prelude::*;
     use datafusion::assert_batches_eq;
-    use datafusion_simplegeo::{SessionContextSimpleGeoExt, SimpleGeoReadOptions};
+    use datafusion_simplegeo::SessionContextSimpleGeoExt;
 
     #[tokio::test]
     async fn test_read_simple_geo() -> Result<()> {
         let ctx = SessionContext::new();
 
-        ctx.register_simple_geo(
-            "test_data",
-            "tests/data/sample.sgeo",
-            SimpleGeoReadOptions::default()
-        ).await?;
+        ctx.register_simple_geo_file("test_data", "tests/data/sample.sgeo").await?;
 
         let df = ctx.sql("SELECT * FROM test_data ORDER BY id").await?;
         let batches = df.collect().await?;
@@ -1188,10 +1218,7 @@ mod tests {
     async fn test_projection_pushdown() -> Result<()> {
         let ctx = SessionContext::new();
 
-        let df = ctx.read_simple_geo(
-            "tests/data/sample.sgeo",
-            SimpleGeoReadOptions::default()
-        ).await?;
+        let df = ctx.read_simple_geo_file("tests/data/sample.sgeo").await?;
 
         // Only select 'name' column - should only decode that column
         let result = df.select_columns(&["name"])?.collect().await?;
@@ -1199,6 +1226,27 @@ mod tests {
         assert_eq!(result[0].num_columns(), 1);
         assert_eq!(result[0].column(0).len(), 2);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_custom_options() -> Result<()> {
+        let ctx = SessionContext::new();
+
+        let options = SimpleGeoFormatOptions::default()
+            .with_batch_size(4096)
+            .with_geometry_column_name("geom");
+
+        ctx.register_simple_geo_with_options(
+            "custom_test",
+            "tests/data/sample.sgeo",
+            options
+        ).await?;
+
+        let df = ctx.sql("SELECT geom FROM custom_test").await?;
+        let batches = df.collect().await?;
+
+        assert!(!batches.is_empty());
         Ok(())
     }
 }
@@ -1261,7 +1309,7 @@ You can also download these directly from:
 mod integration_tests {
     use super::*;
     use datafusion::prelude::*;
-    use datafusion_simplegeo::{SessionContextSimpleGeoExt, SimpleGeoReadOptions};
+    use datafusion_simplegeo::SessionContextSimpleGeoExt;
 
     /// Test reading real-world Natural Earth countries data
     #[tokio::test]
@@ -1270,11 +1318,7 @@ mod integration_tests {
 
         // Convert Natural Earth Parquet to your format first (one-time setup)
         // Then register your format version
-        ctx.register_simple_geo(
-            "countries",
-            "tests/data/naturalearth/countries.sgeo",
-            SimpleGeoReadOptions::default()
-        ).await?;
+        ctx.register_simple_geo_file("countries", "tests/data/naturalearth/countries.sgeo").await?;
 
         // Query countries
         let df = ctx.sql(
@@ -1298,11 +1342,7 @@ mod integration_tests {
     async fn test_antimeridian_handling() -> Result<()> {
         let ctx = SessionContext::new();
 
-        ctx.register_simple_geo(
-            "countries",
-            "tests/data/naturalearth/countries.sgeo",
-            SimpleGeoReadOptions::default()
-        ).await?;
+        ctx.register_simple_geo_file("countries", "tests/data/naturalearth/countries.sgeo").await?;
 
         // Query Fiji, which crosses the antimeridian (180° longitude)
         let df = ctx.sql(
@@ -1329,11 +1369,7 @@ mod integration_tests {
     async fn test_polar_geometry() -> Result<()> {
         let ctx = SessionContext::new();
 
-        ctx.register_simple_geo(
-            "countries",
-            "tests/data/naturalearth/countries.sgeo",
-            SimpleGeoReadOptions::default()
-        ).await?;
+        ctx.register_simple_geo_file("countries", "tests/data/naturalearth/countries.sgeo").await?;
 
         // Antarctica has polygon covering the South Pole
         let df = ctx.sql(
@@ -1358,10 +1394,7 @@ mod integration_tests {
     async fn test_projection_with_naturalearth() -> Result<()> {
         let ctx = SessionContext::new();
 
-        let df = ctx.read_simple_geo(
-            "tests/data/naturalearth/countries.sgeo",
-            SimpleGeoReadOptions::default()
-        ).await?;
+        let df = ctx.read_simple_geo_file("tests/data/naturalearth/countries.sgeo").await?;
 
         // Select only 2 columns from the many available
         let result = df
@@ -1383,11 +1416,7 @@ mod integration_tests {
     async fn test_spatial_filter_naturalearth() -> Result<()> {
         let ctx = SessionContext::new();
 
-        ctx.register_simple_geo(
-            "cities",
-            "tests/data/naturalearth/cities.sgeo",
-            SimpleGeoReadOptions::default()
-        ).await?;
+        ctx.register_simple_geo_file("cities", "tests/data/naturalearth/cities.sgeo").await?;
 
         // Filter cities within a bounding box (Europe)
         let df = ctx.sql(
@@ -1414,17 +1443,8 @@ mod integration_tests {
         let ctx = SessionContext::new();
 
         // Register both point and polygon datasets
-        ctx.register_simple_geo(
-            "cities",
-            "tests/data/naturalearth/cities.sgeo",
-            SimpleGeoReadOptions::default()
-        ).await?;
-
-        ctx.register_simple_geo(
-            "countries",
-            "tests/data/naturalearth/countries.sgeo",
-            SimpleGeoReadOptions::default()
-        ).await?;
+        ctx.register_simple_geo_file("cities", "tests/data/naturalearth/cities.sgeo").await?;
+        ctx.register_simple_geo_file("countries", "tests/data/naturalearth/countries.sgeo").await?;
 
         // Join cities with their countries
         let df = ctx.sql(
@@ -1455,10 +1475,7 @@ mod integration_tests {
 
         let start = Instant::now();
 
-        let df = ctx.read_simple_geo(
-            "tests/data/naturalearth/countries.sgeo",
-            SimpleGeoReadOptions::default()
-        ).await?;
+        let df = ctx.read_simple_geo_file("tests/data/naturalearth/countries.sgeo").await?;
 
         let batches = df.collect().await?;
         let duration = start.elapsed();
