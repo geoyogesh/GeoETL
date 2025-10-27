@@ -37,11 +37,15 @@ mod file_source;
 pub mod geospatial;
 mod object_store_reader;
 mod physical_exec;
+mod sink;
+mod writer;
 
 // Re-export public types
 pub use file_format::CsvFormatOptions;
 pub use file_source::CsvSourceBuilder;
 pub use object_store_reader::CsvFileMetadata;
+pub use sink::{CsvSink, CsvWriterExec};
+pub use writer::{CsvWriterOptions, write_csv, write_csv_to_bytes};
 
 use datafusion::prelude::*;
 use datafusion_common::Result;

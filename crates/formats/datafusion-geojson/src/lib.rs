@@ -2,9 +2,13 @@ mod file_format;
 mod file_source;
 mod parser;
 mod physical_exec;
+mod sink;
+mod writer;
 
 pub use file_format::GeoJsonFormatOptions;
 pub use file_source::GeoJsonSourceBuilder;
+pub use sink::{GeoJsonSink, GeoJsonWriterExec};
+pub use writer::{GeoJsonWriterOptions, write_geojson, write_geojson_to_bytes};
 
 use datafusion::prelude::*;
 use datafusion_common::Result;

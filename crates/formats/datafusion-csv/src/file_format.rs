@@ -226,6 +226,37 @@ impl FileFormat for CsvFormat {
     fn file_source(&self) -> Arc<dyn FileSource> {
         Arc::new(CsvFileSource::new(self.options.clone())) as Arc<dyn FileSource>
     }
+
+    async fn create_writer_physical_plan(
+        &self,
+        input: Arc<dyn ExecutionPlan>,
+        _state: &dyn Session,
+        conf: datafusion::datasource::physical_plan::FileSinkConfig,
+        order_requirements: Option<datafusion_physical_expr::LexRequirement>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        use datafusion::logical_expr::dml::InsertOp;
+
+        if conf.insert_op != InsertOp::Append {
+            return Err(datafusion_common::DataFusionError::NotImplemented(
+                "Overwrites are not implemented yet for CSV".to_string(),
+            ));
+        }
+
+        // Create writer options from format options
+        let writer_options = crate::writer::CsvWriterOptions::default()
+            .with_delimiter(self.options.delimiter)
+            .with_header(self.options.has_header);
+
+        // Create the sink
+        let sink = Arc::new(crate::sink::CsvSink::new(conf, writer_options));
+
+        // Create the writer execution plan
+        Ok(Arc::new(crate::sink::CsvWriterExec::new(
+            input,
+            sink,
+            order_requirements,
+        )))
+    }
 }
 
 /// Helper to detect file extension from path
