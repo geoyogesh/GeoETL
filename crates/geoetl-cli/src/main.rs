@@ -77,6 +77,16 @@ enum Commands {
         /// The driver to use for writing the output dataset (e.g., "`GeoJSON`", "`Parquet`").
         #[arg(long, value_name = "DRIVER")]
         output_driver: String,
+
+        /// Name of the geometry column in the input dataset (default: "geometry").
+        /// For CSV files, this should be the column containing WKT geometry strings.
+        #[arg(long, value_name = "COLUMN", default_value = "geometry")]
+        geometry_column: String,
+
+        /// Geometry type for the input geometry column (e.g., "`Point`", "`LineString`", "`Polygon`").
+        /// Only required when converting from CSV with WKT geometries to `GeoJSON`.
+        #[arg(long, value_name = "TYPE")]
+        geometry_type: Option<String>,
     },
 
     /// Displays information about a vector geospatial dataset.
@@ -142,9 +152,19 @@ async fn main() -> Result<()> {
             output,
             input_driver,
             output_driver,
+            geometry_column,
+            geometry_type,
         } => {
             info!("Converting {input} to {output}");
-            handle_convert(&input, &output, &input_driver, &output_driver).await?;
+            handle_convert(
+                &input,
+                &output,
+                &input_driver,
+                &output_driver,
+                &geometry_column,
+                geometry_type.as_deref(),
+            )
+            .await?;
         },
         Commands::Info {
             input,
@@ -170,12 +190,18 @@ async fn handle_convert(
     output: &str,
     input_driver_name: &str,
     output_driver_name: &str,
+    geometry_column: &str,
+    geometry_type: Option<&str>,
 ) -> Result<()> {
     info!("Validating convert command:");
     info!("Input: {input}");
     info!("Output: {output}");
     info!("Input driver: {input_driver_name}");
     info!("Output driver: {output_driver_name}");
+    info!("Geometry column: {geometry_column}");
+    if let Some(geom_type) = geometry_type {
+        info!("Geometry type: {geom_type}");
+    }
 
     let input_driver = drivers::find_driver(input_driver_name)
         .ok_or_else(|| anyhow!("Input driver '{input_driver_name}' not found."))?;
@@ -196,7 +222,15 @@ async fn handle_convert(
     }
 
     info!("Convert command:");
-    operations::convert(input, output, &input_driver, &output_driver).await?;
+    operations::convert(
+        input,
+        output,
+        &input_driver,
+        &output_driver,
+        geometry_column,
+        geometry_type,
+    )
+    .await?;
     info!("Conversion complete.");
     Ok(())
 }
@@ -285,6 +319,8 @@ mod tests {
             "output.geojson",
             input_driver_name,
             output_driver_name,
+            "geometry",
+            None,
         )
         .await;
         assert!(result.is_ok());
@@ -301,6 +337,8 @@ mod tests {
             "output.geojson",
             input_driver_name,
             output_driver_name,
+            "geometry",
+            None,
         )
         .await;
         assert!(result.is_err());
@@ -321,6 +359,8 @@ mod tests {
             "output.geojson",
             input_driver_name,
             output_driver_name,
+            "geometry",
+            None,
         )
         .await;
         assert!(result.is_err());
@@ -341,6 +381,8 @@ mod tests {
             "output.geojson",
             input_driver_name,
             output_driver_name,
+            "geometry",
+            None,
         )
         .await;
         assert!(result.is_err());
@@ -361,6 +403,8 @@ mod tests {
             "output.gml",
             input_driver_name,
             output_driver_name,
+            "geometry",
+            None,
         )
         .await;
         assert!(result.is_err());

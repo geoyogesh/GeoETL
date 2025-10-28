@@ -11,6 +11,9 @@ anyhow.workspace = true
 log.workspace = true
 tokio.workspace = true
 datafusion.workspace = true
+geoarrow-schema.workspace = true
+geoarrow-array.workspace = true
+arrow-schema.workspace = true
 datafusion-csv = { path = "../formats/datafusion-csv" }
 datafusion-geojson = { path = "../formats/datafusion-geojson" }
 

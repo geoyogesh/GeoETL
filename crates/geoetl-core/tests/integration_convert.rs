@@ -12,12 +12,15 @@ use tempfile::TempDir;
 /// Helper to create a sample CSV file with spatial data
 fn create_spatial_csv(path: &std::path::Path) -> std::io::Result<()> {
     let mut file = File::create(path)?;
-    writeln!(file, "id,name,lat,lon,category,value")?;
-    writeln!(file, "1,Location A,40.7128,-74.0060,retail,100")?;
-    writeln!(file, "2,Location B,34.0522,-118.2437,warehouse,250")?;
-    writeln!(file, "3,Location C,41.8781,-87.6298,office,175")?;
-    writeln!(file, "4,Location D,29.7604,-95.3698,retail,320")?;
-    writeln!(file, "5,Location E,33.4484,-112.0740,office,280")?;
+    writeln!(file, "id,name,wkt,category,value")?;
+    writeln!(file, "1,Location A,\"POINT(-74.0060 40.7128)\",retail,100")?;
+    writeln!(
+        file,
+        "2,Location B,\"POINT(-118.2437 34.0522)\",warehouse,250"
+    )?;
+    writeln!(file, "3,Location C,\"POINT(-87.6298 41.8781)\",office,175")?;
+    writeln!(file, "4,Location D,\"POINT(-95.3698 29.7604)\",retail,320")?;
+    writeln!(file, "5,Location E,\"POINT(-112.0740 33.4484)\",office,280")?;
     Ok(())
 }
 
@@ -92,6 +95,8 @@ async fn test_e2e_csv_to_csv_conversion() {
         output_path.to_str().unwrap(),
         &csv_driver,
         &csv_driver,
+        "wkt",
+        None,
     )
     .await;
 
@@ -100,12 +105,11 @@ async fn test_e2e_csv_to_csv_conversion() {
 
     // Verify output content
     let output = std::fs::read_to_string(&output_path).unwrap();
-    assert!(output.contains("id,name,lat,lon,category,value"));
+    assert!(output.contains("id,name,wkt,category,value"));
     assert!(output.contains("Location A"));
     assert!(output.contains("Location B"));
     assert!(output.contains("Location C"));
-    assert!(output.contains("40.7128"));
-    assert!(output.contains("-74.006"));
+    assert!(output.contains("POINT(-74.006 40.7128)"));
 
     // Verify row count
     let line_count = output.lines().count();
@@ -130,6 +134,8 @@ async fn test_e2e_geojson_to_geojson_conversion() {
         output_path.to_str().unwrap(),
         &geojson_driver,
         &geojson_driver,
+        "geometry",
+        None,
     )
     .await;
 
@@ -156,9 +162,10 @@ async fn test_e2e_large_csv_conversion() {
 
     // Create a larger CSV file with 1000 rows
     let mut file = File::create(&input_path).unwrap();
-    writeln!(file, "id,value,category").unwrap();
+    writeln!(file, "id,value,category,wkt").unwrap();
     for i in 1..=1000 {
-        writeln!(file, "{},{},category_{}", i, i * 10, i % 5).unwrap();
+        let wkt = format!("POINT({i} {i})");
+        writeln!(file, "{},{},category_{},\"{}\"", i, i * 10, i % 5, wkt).unwrap();
     }
 
     // Get drivers
@@ -170,6 +177,8 @@ async fn test_e2e_large_csv_conversion() {
         output_path.to_str().unwrap(),
         &csv_driver,
         &csv_driver,
+        "wkt",
+        None,
     )
     .await;
 
@@ -217,6 +226,8 @@ async fn test_e2e_driver_validation() {
         output_path.to_str().unwrap(),
         &input_driver,
         &output_driver,
+        "geometry",
+        None,
     )
     .await;
 
@@ -237,10 +248,10 @@ async fn test_e2e_csv_with_special_characters() {
 
     // Create CSV with special characters and proper quoting
     let mut file = File::create(&input_path).unwrap();
-    writeln!(file, "id,name,description").unwrap();
-    writeln!(file, "1,O'Brien,Simple name").unwrap();
-    writeln!(file, "2,Smith,Another name").unwrap();
-    writeln!(file, "3,Müller,Unicode name").unwrap();
+    writeln!(file, "id,name,description,wkt").unwrap();
+    writeln!(file, "1,O'Brien,Simple name,\"POINT(1 1)\"").unwrap();
+    writeln!(file, "2,Smith,Another name,\"POINT(2 2)\"").unwrap();
+    writeln!(file, "3,Müller,Unicode name,\"POINT(3 3)\"").unwrap();
 
     let csv_driver = find_driver("CSV").expect("CSV driver should exist");
 
@@ -249,6 +260,8 @@ async fn test_e2e_csv_with_special_characters() {
         output_path.to_str().unwrap(),
         &csv_driver,
         &csv_driver,
+        "wkt",
+        None,
     )
     .await;
 
@@ -284,6 +297,8 @@ async fn test_e2e_multiple_conversions_same_session() {
         output1.to_str().unwrap(),
         &csv_driver,
         &csv_driver,
+        "wkt",
+        None,
     )
     .await;
 
@@ -293,6 +308,8 @@ async fn test_e2e_multiple_conversions_same_session() {
         output2.to_str().unwrap(),
         &geojson_driver,
         &geojson_driver,
+        "geometry",
+        None,
     )
     .await;
 

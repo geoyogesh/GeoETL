@@ -5,7 +5,9 @@ use std::io::Write as IoWrite;
 use arrow_array::{Array, RecordBatch};
 use arrow_schema::DataType;
 use datafusion_common::{DataFusionError, Result};
+use geoarrow_array::{GeoArrowArray, GeoArrowArrayAccessor};
 use geojson::{Feature, FeatureCollection, GeoJson, JsonObject, JsonValue};
+use geozero::ToJson;
 
 /// Options for `GeoJSON` writing
 #[derive(Debug, Clone)]
@@ -55,6 +57,49 @@ impl GeoJsonWriterOptions {
     pub fn with_pretty_print(mut self, pretty_print: bool) -> Self {
         self.pretty_print = pretty_print;
         self
+    }
+}
+
+/// Convert `GeoArrow` geometry to `GeoJSON` geometry using geozero
+fn geoarrow_to_geojson_geometry(
+    geom_array: &dyn Array,
+    geom_field: &arrow_schema::Field,
+    row_idx: usize,
+) -> Result<Option<geojson::Geometry>> {
+    use geoarrow_array::array::GeometryArray;
+
+    // Try to convert from Arrow array to GeometryArray (supports all geometry types)
+    let geometry_array_result = GeometryArray::try_from((geom_array, geom_field));
+
+    match geometry_array_result {
+        Ok(geom_arr) => {
+            // Check if the value at this row is null
+            if geom_arr.is_null(row_idx) {
+                return Ok(None);
+            }
+
+            // Get the geometry scalar at this row index using GeoArrowArrayAccessor
+            let geom = geom_arr
+                .value(row_idx)
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+            // Convert to GeoJSON string using geozero's ToJson trait
+            let geojson_string = geom
+                .to_json()
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+            // Parse the GeoJSON string into a geojson::Geometry
+            let geometry: geojson::Geometry = serde_json::from_str(&geojson_string)
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+            Ok(Some(geometry))
+        },
+        Err(e) => {
+            // Log the error for debugging
+            eprintln!("DEBUG: Failed to convert to GeometryArray: {e:?}");
+            // Not a GeoArrow geometry column
+            Ok(None)
+        },
     }
 }
 
@@ -174,16 +219,10 @@ pub fn batch_to_features(
             properties.insert(field.name().clone(), value);
         }
 
-        // Extract geometry
+        // Extract geometry - use geoarrow_to_geojson_geometry helper
         let geom_column = batch.column(geom_idx);
-        let geometry = if geom_column.is_null(row_idx) {
-            None
-        } else {
-            // Try to convert to GeoArrow GeometryArray and then to GeoJSON
-            // For now, return None - full implementation would convert geometry
-            // This would require geoarrow-rs conversion to GeoJSON geometry
-            None::<geojson::Geometry>
-        };
+        let geom_field = schema.field(geom_idx);
+        let geometry = geoarrow_to_geojson_geometry(geom_column.as_ref(), geom_field, row_idx)?;
 
         let feature = Feature {
             bbox: None,
