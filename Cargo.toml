@@ -48,6 +48,7 @@ geoparquet = "0.6.1"
 geozero = { version = "0.14", features = ["with-wkb", "with-wkt"] }
 geo-traits = "0.3.0"
 futures = "0.3"
+log = "0.4"
 object_store = "0.12.4"
 tabled = "0.17.0"
 tempfile = "3.23"
@@ -55,4 +56,5 @@ tokio = "1.48"
 tokio-util = { version = "0.7", features = ["io"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
+tracing-log = "0.2"
 url = "2.5"

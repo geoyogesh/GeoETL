@@ -36,4 +36,4 @@ check: fmt lint test security coverage
 geoetl-cli-dev:
 	cargo fmt --all
 	cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic
-	cargo run -p geoetl-cli -- ${ARGS}
+	cargo run -p geoetl-cli -- ${ARGS} --verbose
