@@ -165,6 +165,7 @@ docker compose -f docker/docker-compose.yml --profile prod run --rm --entrypoint
 #   linux-vdso.so.1 (kernel virtual library)
 #   libgcc_s.so.1 (GCC runtime)
 #   libc.so.6 (GNU C library)
+#   libm.so.6: The C math library. Used for functions like sqrt, sin, cos, etc.
 #   /lib/ld-linux-aarch64.so.1 (dynamic linker)
 ```
 
@@ -226,11 +227,11 @@ docker run --rm --entrypoint /bin/bash geoetl/cli:latest -c 'whoami && id'
 
 # Check binary size
 docker run --rm --entrypoint /bin/bash geoetl/cli:latest -c 'ls -lh /usr/local/bin/geoetl'
-# Expected: ~1.3MB (stripped and optimized)
+# Expected: ~80MB (stripped and optimized)
 
 # Check container size
 docker images geoetl/cli:latest --format 'Size: {{.Size}}'
-# Expected: ~140MB
+# Expected: ~250MB
 ```
 
 **What the tests verify:**

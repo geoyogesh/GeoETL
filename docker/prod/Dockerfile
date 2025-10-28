@@ -32,14 +32,26 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates/geoetl-cli/Cargo.toml ./crates/geoetl-cli/
 COPY crates/geoetl-core/Cargo.toml ./crates/geoetl-core/
+COPY crates/geoetl-operations/Cargo.toml ./crates/geoetl-operations/
+COPY crates/formats/datafusion-csv/Cargo.toml ./crates/formats/datafusion-csv/
+COPY crates/formats/datafusion-flatgeobuf/Cargo.toml ./crates/formats/datafusion-flatgeobuf/
+COPY crates/formats/datafusion-geojson/Cargo.toml ./crates/formats/datafusion-geojson/
+COPY crates/formats/datafusion-geoparquet/Cargo.toml ./crates/formats/datafusion-geoparquet/
+COPY crates/formats/datafusion-shared/Cargo.toml ./crates/formats/datafusion-shared/
 
 # Create dummy source files to cache dependencies
-RUN mkdir -p crates/geoetl-cli/src crates/geoetl-core/src && \
+RUN mkdir -p crates/geoetl-cli/src crates/geoetl-core/src crates/geoetl-operations/src crates/formats/datafusion-csv/src crates/formats/datafusion-flatgeobuf/src crates/formats/datafusion-geojson/src crates/formats/datafusion-geoparquet/src crates/formats/datafusion-shared/src && \
     echo "fn main() {}" > crates/geoetl-cli/src/main.rs && \
-    echo "pub fn dummy() {}" > crates/geoetl-core/src/lib.rs
+    echo "pub fn dummy() {}" > crates/geoetl-core/src/lib.rs && \
+    echo "pub fn dummy() {}" > crates/geoetl-operations/src/lib.rs && \
+    echo "pub fn dummy() {}" > crates/formats/datafusion-csv/src/lib.rs && \
+    echo "pub fn dummy() {}" > crates/formats/datafusion-flatgeobuf/src/lib.rs && \
+    echo "pub fn dummy() {}" > crates/formats/datafusion-geojson/src/lib.rs && \
+    echo "pub fn dummy() {}" > crates/formats/datafusion-geoparquet/src/lib.rs && \
+    echo "pub fn dummy() {}" > crates/formats/datafusion-shared/src/lib.rs
 
 # Build dependencies only (this layer will be cached)
-RUN cargo build --release --bin geoetl-cli
+RUN cargo build --workspace --all-targets --release
 
 # Remove dummy build artifacts
 RUN rm -rf crates/*/src target/release/.fingerprint/geoetl-*
