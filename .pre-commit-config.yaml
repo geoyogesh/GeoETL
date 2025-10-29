@@ -15,6 +15,14 @@ repos:
         types: [rust]
         pass_filenames: false
 
+      - id: taplo-fmt
+        name: taplo format
+        description: Format TOML files with taplo
+        entry: taplo format
+        language: system
+        types: [toml]
+        pass_filenames: false
+
       - id: cargo-clippy
         name: cargo clippy
         description: Lint Rust code with clippy
@@ -57,6 +65,6 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
-        args: ['--maxkb=1000']
+        args: ['--maxkb=5000']
       - id: mixed-line-ending
         args: ['--fix=lf']

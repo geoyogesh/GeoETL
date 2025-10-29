@@ -20,6 +20,7 @@ This guide is for developers who want to contribute to GeoETL or build it from s
 ## Related Documentation
 
 - [User Guide](USERGUIDE.md) - Complete guide to using GeoETL CLI
+- [DataFusion Geospatial Format Integration Guide](DATAFUSION_GEOSPATIAL_FORMAT_INTEGRATION_GUIDE.md) - Implementing custom geospatial file formats with DataFusion and GeoArrow
 - [Vision](VISION.md) - Project vision and roadmap
 - [Architecture Decision Records](adr/) - Technical design decisions
 
@@ -46,6 +47,8 @@ Install dependencies using mise (if available):
 ```bash
 mise install
 ```
+This installs Rust 1.90.0 plus the command-line tools used throughout this guide
+(`taplo`, `cargo-audit`, `cargo-deny`, `cargo-llvm-cov`, and `cargo-outdated`).
 
 Or manually ensure you have Rust 1.90.0 installed.
 
@@ -85,7 +88,8 @@ prek install
 ```
 
 The hooks will now run automatically on `git commit`. They will:
-- Auto-format code with `cargo fmt`
+- Auto-format Rust code with `cargo fmt`
+- Auto-format TOML files with `taplo format`
 - Check for lint warnings with `cargo clippy`
 - Run tests with `cargo test`
 - Verify licenses and dependencies with `cargo deny`
@@ -106,7 +110,11 @@ git commit --no-verify
 
 ### Docker-Based Workflow
 
-The repository includes a containerized development environment for consistent tooling:
+The repository includes multiple containerized environments for different use cases:
+
+#### Development Containers
+
+Development environment with full Rust toolchain for consistent tooling:
 
 ```bash
 # Start the watcher-driven dev container (fmt + clippy + tests on change)
@@ -120,6 +128,118 @@ docker compose --profile test run --rm geoetl-test
 ```
 
 Both services share cached cargo volumes (`cargo-target`, `cargo-registry`, `cargo-git`) for faster incremental builds. Stop containers with `docker compose down`.
+
+#### Production Build (Multi-Stage)
+
+The production Docker setup uses a multi-stage build to create a minimal runtime container that replicates real-world deployment scenarios where the CLI runs completely standalone without any build dependencies.
+
+**Architecture:**
+
+1. **Builder Stage**: Full Rust toolchain (~2.5GB)
+   - Compiles CLI with all dependencies
+   - Optimizes and strips debug symbols
+   - Verifies binary execution
+
+2. **Runtime Stage**: Minimal container (~140MB)
+   - Contains only the compiled CLI binary
+   - Only core system libraries (glibc, libgcc) - all other deps statically linked
+   - No additional packages installed - fully self-contained binary
+   - No build tools, no source code, no Rust compiler
+   - Runs as non-root user for security
+
+**Usage:**
+
+```bash
+# Build the production container
+docker compose -f docker/docker-compose.yml --profile prod build geoetl-cli
+
+# Run with default command (--help)
+docker compose -f docker/docker-compose.yml --profile prod up geoetl-cli
+
+# Run with custom command
+docker compose -f docker/docker-compose.yml --profile prod run --rm geoetl-cli --version
+
+# Test that binary runs without build dependencies (check linked libraries)
+docker compose -f docker/docker-compose.yml --profile prod run --rm --entrypoint=/bin/bash geoetl-cli -c "ldd /usr/local/bin/geoetl"
+# Expected output shows only core system libraries (all other deps statically linked):
+#   linux-vdso.so.1 (kernel virtual library)
+#   libgcc_s.so.1 (GCC runtime)
+#   libc.so.6 (GNU C library)
+#   libm.so.6: The C math library. Used for functions like sqrt, sin, cos, etc.
+#   /lib/ld-linux-aarch64.so.1 (dynamic linker)
+```
+
+**Container Types:**
+
+| Container | Size | Contents | Use Case |
+|-----------|------|----------|----------|
+| `geoetl-dev` | ~2.5GB | Full Rust toolchain + dev tools | Development & testing |
+| `geoetl-builder` | ~2.5GB | Build stage artifacts | CI/CD builds |
+| `geoetl-cli` | ~140MB | Self-contained CLI binary only | Production deployment |
+
+**Multi-Architecture Builds:**
+
+```bash
+# Build for ARM64 (Apple Silicon, ARM servers)
+docker buildx build --platform linux/arm64 -f docker/prod/Dockerfile -t geoetl/cli:arm64 .
+
+# Build for AMD64 (x86_64)
+docker buildx build --platform linux/amd64 -f docker/prod/Dockerfile -t geoetl/cli:amd64 .
+
+# Build multi-arch
+docker buildx build --platform linux/amd64,linux/arm64 -f docker/prod/Dockerfile -t geoetl/cli:latest .
+```
+
+**Security Features:**
+- Non-root user execution (UID 1000)
+- Minimal attack surface
+- No build tools in runtime container
+- Stripped binary (no debug symbols)
+- Latest security patches
+
+**Testing the Production Build:**
+
+Verify the production container works as expected:
+
+```bash
+# Build the production container
+docker compose -f docker/docker-compose.yml --profile prod build geoetl-cli
+
+# Test CLI version
+docker run --rm geoetl/cli:latest --version
+# Expected: geoetl 0.1.0
+
+# Test CLI help
+docker run --rm geoetl/cli:latest --help
+# Expected: Full help output with commands (convert, info, drivers)
+
+# Check binary dependencies (should only show core system libs)
+docker run --rm --entrypoint /bin/bash geoetl/cli:latest -c 'ldd /usr/local/bin/geoetl'
+# Expected output:
+#   linux-vdso.so.1
+#   libgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1
+#   libc.so.6 => /lib/aarch64-linux-gnu/libc.so.6
+#   /lib/ld-linux-aarch64.so.1
+
+# Verify non-root user (security check)
+docker run --rm --entrypoint /bin/bash geoetl/cli:latest -c 'whoami && id'
+# Expected: geoetl, uid=1000(geoetl) gid=1000(geoetl)
+
+# Check binary size
+docker run --rm --entrypoint /bin/bash geoetl/cli:latest -c 'ls -lh /usr/local/bin/geoetl'
+# Expected: ~80MB (stripped and optimized)
+
+# Check container size
+docker images geoetl/cli:latest --format 'Size: {{.Size}}'
+# Expected: ~250MB
+```
+
+**What the tests verify:**
+- ✅ CLI binary is fully functional
+- ✅ Only core system libraries required (SSL, SQLite statically linked)
+- ✅ Runs as non-root user for security
+- ✅ Binary is optimized and stripped (~1.3MB)
+- ✅ Container is minimal (~140MB vs ~2.5GB dev container)
 
 ## Testing CI Pipeline Locally
 
@@ -228,19 +348,23 @@ cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings -D clip
 ```
 Or use the consolidated helper:
 ```bash
-mise run check
+make check
 ```
 
 ### Code Formatting
 
-Format all code:
+Format all Rust code and TOML files:
 ```bash
+make fmt
+# or manually:
 cargo fmt --all
+taplo format
 ```
 
 Check formatting without making changes:
 ```bash
 cargo fmt --all --check
+taplo format --check
 ```
 
 ### Linting
@@ -279,6 +403,7 @@ The project uses `cargo-llvm-cov` for code coverage analysis.
 
 #### Install cargo-llvm-cov
 
+If you used `mise install`, this tool is already available. Otherwise install it manually:
 ```bash
 cargo install cargo-llvm-cov
 rustup component add llvm-tools-preview
@@ -286,15 +411,15 @@ rustup component add llvm-tools-preview
 
 #### Generate Coverage Reports
 
-Show coverage summary table in terminal (used by `mise run check`):
+Show coverage summary table in terminal (used by `make check`):
 ```bash
-mise run coverage
+make coverage
 ```
 This displays a summary table with pass/fail status, without verbose line-by-line details.
 
 Generate and open detailed coverage report in browser:
 ```bash
-mise run coverage-open
+make coverage-open
 ```
 This generates a full HTML report with line-by-line coverage highlighting.
 
@@ -365,6 +490,7 @@ The project uses `cargo-deny` to ensure license compliance, check for security v
 
 #### Install cargo-deny
 
+If you used `mise install`, this tool is already available. Otherwise install it manually:
 ```bash
 cargo install cargo-deny
 ```
@@ -375,9 +501,9 @@ cargo install cargo-deny
 cargo deny check
 ```
 
-Or use the mise task:
+Run both checks together via the Makefile target:
 ```bash
-mise security
+make security
 ```
 
 This runs both `cargo audit` (security vulnerabilities) and `cargo deny check` (licenses, bans, sources).
@@ -423,9 +549,9 @@ Before committing code, ensure:
 5. License and security checks pass: `cargo audit && cargo deny check`
 6. Code coverage is adequate: `cargo llvm-cov --workspace --all-targets --text --fail-under-lines 80`
 
-All in one command using mise:
+All in one command using make:
 ```bash
-mise run check
+make check
 ```
 
 Or using cargo commands directly:
@@ -438,17 +564,17 @@ cargo deny check && \
 cargo llvm-cov --workspace --all-targets --open --fail-under-lines 80
 ```
 
-### mise Tasks
+### Makefile Tasks
 
-Common workflows are available through mise:
+Common workflows are available through the Makefile:
 ```bash
-mise run fmt           # rustfmt across the workspace
-mise run lint          # clippy with pedantic warnings denied
-mise run test          # workspace tests
-mise run security      # cargo audit + cargo deny check
-mise run coverage      # generate coverage summary (text)
-mise run coverage-open # generate and open coverage report in browser
-mise run check         # fmt + lint + test + security + coverage (complete CI check)
+make fmt            # Format Rust code (cargo fmt) and TOML files (taplo)
+make lint           # clippy with pedantic warnings denied
+make test           # workspace tests
+make security       # cargo audit + cargo deny check
+make coverage       # generate coverage summary (text)
+make coverage-open  # generate and open coverage report in browser
+make check          # fmt + lint + test + security + coverage (complete CI check)
 ```
 
 ## Documentation
@@ -478,6 +604,8 @@ cargo update
 ```
 
 ### Check for outdated dependencies
+
+`mise install` provides the `cargo-outdated` command. If you skipped mise, install it with `cargo install cargo-outdated`.
 ```bash
 cargo outdated
 ```
@@ -502,7 +630,7 @@ We welcome contributions to GeoETL! Here's how to get started:
 3. **Make Changes**
    - Follow the Rust coding standards
    - Write tests for new functionality
-   - Ensure all checks pass (`mise run check`)
+   - Ensure all checks pass (`make check`)
 
 4. **Commit Your Changes**
    ```bash
@@ -527,6 +655,9 @@ We welcome contributions to GeoETL! Here's how to get started:
 ### Areas for Contribution
 
 - **Format Support**: Implement readers/writers for additional formats
+  - See the [DataFusion Geospatial Format Integration Guide](DATAFUSION_GEOSPATIAL_FORMAT_INTEGRATION_GUIDE.md) for a comprehensive guide on implementing custom geospatial file formats
+  - Learn about DataFusion traits (`FileFormat`, `FileSource`, `FileOpener`)
+  - Understand GeoArrow integration with the [geoarrow-rs](https://geoarrow.org/geoarrow-rs/rust/) ecosystem
 - **Spatial Operations**: Add new spatial algorithms
 - **Performance**: Optimize existing operations
 - **Documentation**: Improve docs and examples

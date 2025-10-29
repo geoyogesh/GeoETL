@@ -1,0 +1,86 @@
+services:
+  # ============================================================================
+  # Development container with full Rust toolchain and dev tools
+  # ============================================================================
+  geoetl-dev:
+    image: geoetl/dev:latest
+    build:
+      context: ..
+      dockerfile: docker/dev/Dockerfile
+      args:
+        USER_ID: ${UID:-1000}
+        GROUP_ID: ${GID:-1000}
+    working_dir: /workspace
+    command:
+      - /opt/geoetl/bin/geoetl-dev-watch.sh
+    environment:
+      CARGO_TERM_COLOR: always
+      RUST_LOG: info
+    volumes:
+      - ../:/workspace:delegated
+      - cargo-target:/workspace/target
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+    tty: true
+    init: true
+
+  # ============================================================================
+  # Test runner container
+  # ============================================================================
+  geoetl-test:
+    image: geoetl/dev:latest
+    working_dir: /workspace
+    command:
+      - /opt/geoetl/bin/geoetl-run-checks.sh
+    environment:
+      CARGO_TERM_COLOR: always
+    volumes:
+      - ../:/workspace:delegated
+      - cargo-target:/workspace/target
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+    profiles:
+      - test
+    tty: true
+    init: true
+
+  # ============================================================================
+  # Builder container - builds the CLI binary with all dependencies
+  # ============================================================================
+  geoetl-builder:
+    image: geoetl/builder:latest
+    build:
+      context: ..
+      dockerfile: docker/prod/Dockerfile
+      target: builder
+    profiles:
+      - build
+    volumes:
+      - build-artifacts:/build/target
+    tty: true
+    init: true
+
+  # ============================================================================
+  # Production runtime container - minimal container that executes the CLI
+  # This replicates the real-world scenario where the CLI runs standalone
+  # without any build dependencies. Everything is built into the executable.
+  # ============================================================================
+  geoetl-cli:
+    image: geoetl/cli:latest
+    build:
+      context: ..
+      dockerfile: docker/prod/Dockerfile
+      target: runtime
+    # Override CMD to run a sample command or interactive mode
+    # Change this to test different CLI commands
+    command: ["--help"]
+    profiles:
+      - prod
+    tty: true
+    init: true
+
+volumes:
+  cargo-target:
+  cargo-registry:
+  cargo-git:
+  build-artifacts:

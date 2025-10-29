@@ -16,10 +16,11 @@
 //! - `info` - Display dataset information and metadata
 //! - `drivers` - List all available format drivers and their capabilities
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use tabled::{Table, Tabled};
 use tracing::{Level, debug, info, warn};
+use tracing_log::LogTracer;
 use tracing_subscriber::FmtSubscriber;
 
 use geoetl_core::drivers::get_available_drivers;
@@ -76,6 +77,16 @@ enum Commands {
         /// The driver to use for writing the output dataset (e.g., "`GeoJSON`", "`Parquet`").
         #[arg(long, value_name = "DRIVER")]
         output_driver: String,
+
+        /// Name of the geometry column in the input dataset (default: "geometry").
+        /// For CSV files, this should be the column containing WKT geometry strings.
+        #[arg(long, value_name = "COLUMN", default_value = "geometry")]
+        geometry_column: String,
+
+        /// Geometry type for the input geometry column (e.g., "`Point`", "`LineString`", "`Polygon`").
+        /// Only required when converting from CSV with WKT geometries to `GeoJSON`.
+        #[arg(long, value_name = "TYPE")]
+        geometry_type: Option<String>,
     },
 
     /// Displays information about a vector geospatial dataset.
@@ -111,7 +122,8 @@ enum Commands {
 /// # Errors
 ///
 /// Returns an error if command execution fails or if the logging system cannot be initialized.
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Setup logging based on verbosity flags
@@ -123,9 +135,12 @@ fn main() -> Result<()> {
         Level::WARN
     };
 
+    // Bridge logs from the `log` crate to the `tracing` ecosystem.
+    LogTracer::init()?;
+
     let subscriber = FmtSubscriber::builder()
         .with_max_level(log_level)
-        .with_target(false)
+        .with_target(true) // Show module paths for better context
         .finish();
 
     tracing::subscriber::set_global_default(subscriber)?;
@@ -137,9 +152,19 @@ fn main() -> Result<()> {
             output,
             input_driver,
             output_driver,
+            geometry_column,
+            geometry_type,
         } => {
             info!("Converting {input} to {output}");
-            handle_convert(&input, &output, &input_driver, &output_driver)?;
+            handle_convert(
+                &input,
+                &output,
+                &input_driver,
+                &output_driver,
+                &geometry_column,
+                geometry_type.as_deref(),
+            )
+            .await?;
         },
         Commands::Info {
             input,
@@ -157,54 +182,59 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Handles the `convert` subcommand for format conversion (currently a placeholder).
-///
-/// This function will orchestrate the ETL process for converting geospatial data from
-/// one format to another using specified drivers. The implementation is planned for Phase 2.
-///
-/// # Arguments
-///
-/// * `input` - Path to the input dataset file or resource
-/// * `output` - Path where the output dataset should be written
-/// * `input_driver` - Name of the driver to use for reading (e.g., `GeoJSON`)
-/// * `output_driver` - Name of the driver to use for writing (e.g., `Parquet`)
-///
-/// # Errors
-///
-/// This function returns a `Result` for future error handling, but currently always
-/// returns `Ok(())` as it only logs the conversion parameters without performing actual conversion.
-#[allow(clippy::unnecessary_wraps)] // Placeholder until command execution is implemented
-fn handle_convert(
+use geoetl_core::drivers;
+use geoetl_core::operations;
+
+async fn handle_convert(
     input: &str,
     output: &str,
-    input_driver: &str,
-    output_driver: &str,
+    input_driver_name: &str,
+    output_driver_name: &str,
+    geometry_column: &str,
+    geometry_type: Option<&str>,
 ) -> Result<()> {
-    info!("Convert command:");
+    info!("Validating convert command:");
     info!("Input: {input}");
     info!("Output: {output}");
-    info!("Input driver: {input_driver}");
-    info!("Output driver: {output_driver}");
-    warn!("Not yet implemented - Phase 1 development");
+    info!("Input driver: {input_driver_name}");
+    info!("Output driver: {output_driver_name}");
+    info!("Geometry column: {geometry_column}");
+    if let Some(geom_type) = geometry_type {
+        info!("Geometry type: {geom_type}");
+    }
+
+    let input_driver = drivers::find_driver(input_driver_name)
+        .ok_or_else(|| anyhow!("Input driver '{input_driver_name}' not found."))?;
+
+    if !input_driver.capabilities.read.is_supported() {
+        return Err(anyhow!(
+            "Input driver '{input_driver_name}' does not support reading."
+        ));
+    }
+
+    let output_driver = drivers::find_driver(output_driver_name)
+        .ok_or_else(|| anyhow!("Output driver '{output_driver_name}' not found."))?;
+
+    if !output_driver.capabilities.write.is_supported() {
+        return Err(anyhow!(
+            "Output driver '{output_driver_name}' does not support writing."
+        ));
+    }
+
+    info!("Convert command:");
+    operations::convert(
+        input,
+        output,
+        &input_driver,
+        &output_driver,
+        geometry_column,
+        geometry_type,
+    )
+    .await?;
+    info!("Conversion complete.");
     Ok(())
 }
 
-/// Handles the `info` subcommand for dataset inspection (currently a placeholder).
-///
-/// This function will display detailed information about a geospatial dataset, including
-/// layer details, geometry types, coordinate systems, and optionally field-level statistics.
-/// The implementation is planned for Phase 2.
-///
-/// # Arguments
-///
-/// * `input` - Path to the input dataset file or resource
-/// * `detailed` - If `true`, display detailed layer-level information
-/// * `stats` - If `true`, compute and display statistics for each field
-///
-/// # Errors
-///
-/// This function returns a `Result` for future error handling, but currently always
-/// returns `Ok(())` as it only logs the info parameters without performing actual inspection.
 #[allow(clippy::unnecessary_wraps)] // Placeholder until command execution is implemented
 fn handle_info(input: &str, detailed: bool, stats: bool) -> Result<()> {
     info!("Info command:");
@@ -249,6 +279,7 @@ struct DriverRow {
 /// This function returns a `Result` for consistency with other command handlers,
 /// but does not currently perform any operations that fail, so it always returns `Ok(())`.
 #[allow(clippy::unnecessary_wraps)] // Placeholder until command execution is implemented
+#[allow(clippy::unnecessary_wraps)] // Placeholder until command execution is implemented
 fn handle_drivers() -> Result<()> {
     let drivers = get_available_drivers();
 
@@ -269,4 +300,118 @@ fn handle_drivers() -> Result<()> {
     println!("{table}");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_handle_convert_valid_drivers() -> Result<()> {
+        // This test relies on the `operations::convert` being a placeholder
+        // that returns Ok(()). Once actual conversion is implemented, this
+        // test might need to be updated to mock the conversion.
+        let input_driver_name = "CSV";
+        let output_driver_name = "GeoJSON";
+
+        let result = handle_convert(
+            "input.csv",
+            "output.geojson",
+            input_driver_name,
+            output_driver_name,
+            "geometry",
+            None,
+        )
+        .await;
+        assert!(result.is_ok());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_handle_convert_invalid_input_driver() -> Result<()> {
+        let input_driver_name = "NonExistentDriver";
+        let output_driver_name = "GeoJSON";
+
+        let result = handle_convert(
+            "input.csv",
+            "output.geojson",
+            input_driver_name,
+            output_driver_name,
+            "geometry",
+            None,
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Input driver 'NonExistentDriver' not found."
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_handle_convert_input_driver_no_read_support() -> Result<()> {
+        let input_driver_name = "GML"; // GML does not support read
+        let output_driver_name = "GeoJSON";
+
+        let result = handle_convert(
+            "input.gml",
+            "output.geojson",
+            input_driver_name,
+            output_driver_name,
+            "geometry",
+            None,
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Input driver 'GML' does not support reading."
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_handle_convert_invalid_output_driver() -> Result<()> {
+        let input_driver_name = "CSV";
+        let output_driver_name = "NonExistentDriver";
+
+        let result = handle_convert(
+            "input.csv",
+            "output.geojson",
+            input_driver_name,
+            output_driver_name,
+            "geometry",
+            None,
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Output driver 'NonExistentDriver' not found."
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_handle_convert_output_driver_no_write_support() -> Result<()> {
+        let input_driver_name = "CSV";
+        let output_driver_name = "GML"; // GML does not support write
+
+        let result = handle_convert(
+            "input.csv",
+            "output.gml",
+            input_driver_name,
+            output_driver_name,
+            "geometry",
+            None,
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Output driver 'GML' does not support writing."
+        );
+        Ok(())
+    }
 }

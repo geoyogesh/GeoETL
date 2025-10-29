@@ -1,0 +1,6 @@
+user_id,name,email,country,signup_date
+1,Alice Johnson,alice@example.com,USA,2023-01-15
+2,Bob Smith,bob@example.com,Canada,2023-02-20
+3,Charlie Brown,charlie@example.com,UK,2023-03-10
+4,Diana Prince,diana@example.com,USA,2023-04-05
+5,Eve Williams,eve@example.com,Australia,2023-05-12

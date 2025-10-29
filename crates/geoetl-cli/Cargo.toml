@@ -12,9 +12,17 @@ clap = { workspace = true, features = ["derive"] }
 tabled = { workspace = true, features = ["derive"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+tracing-log.workspace = true
 geoetl-core = { path = "../geoetl-core" }
+tokio = { version = "1.33.0", features = ["full"] }
 
 [package.metadata.docs.rs]
 # Configure docs.rs to build documentation for this crate
 # For more options, see https://docs.rs/about/builds#build-script-options
 rustdoc-args = ["--cfg", "docsrs"]
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.0"
+tempfile.workspace = true
+serde_json = "1.0"

@@ -90,6 +90,7 @@ GeoETL addresses these challenges by building on a modern technology stack:
 
 ### Phase 4: Ecosystem
 - Plugin architecture for custom formats
+  - See [DataFusion Geospatial Format Integration Guide](DATAFUSION_GEOSPATIAL_FORMAT_INTEGRATION_GUIDE.md) for implementing format support
 - Language bindings (Python, JavaScript, etc.)
 - Integration with modern data tools
 - Community-driven format extensions

@@ -155,6 +155,7 @@ geoetl-cli info --detailed --stats data.geojson
 
 ### For Developers
 - **[Development Guide](docs/DEVELOPMENT.md)**: Build instructions, workflow, and contribution guidelines
+- **[DataFusion Geospatial Format Integration Guide](docs/DATAFUSION_GEOSPATIAL_FORMAT_INTEGRATION_GUIDE.md)**: Comprehensive guide for implementing custom geospatial file format support using DataFusion and GeoArrow
 - **[Vision Document](docs/VISION.md)**: Project vision, goals, and strategic roadmap
 - **[Architecture Decision Records](docs/adr/)**: Detailed technical design decisions
   - [ADR 0001: High-Level Architecture](docs/adr/0001-high-level-architecture.md)
