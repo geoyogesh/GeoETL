@@ -22,7 +22,7 @@ To become the modern standard for vector spatial data processing, empowering use
 - **Cloud Native**: First-class support for cloud storage (S3, Azure Blob, GCS)
 - **Modern Architecture**: Leverages the GeoRust ecosystem for spatial operations
 - **Streaming I/O**: Process datasets larger than available RAM
-- **No GDAL Dependency**: Clean, modern implementation without legacy dependencies
+- **No GDAL Dependency**: Clean, modern implementation without legacy dependencies 
 
 ## Technology Stack
 
