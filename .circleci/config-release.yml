@@ -10,7 +10,7 @@ executors:
       RUST_BACKTRACE: 1
 
 jobs:
-  build-linux-release:
+  build-linux-x86_64-gnu:
     executor: rust-executor
     environment:
       SCCACHE_DIR: "/tmp/sccache"
@@ -27,16 +27,16 @@ jobs:
             echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
             source $BASH_ENV
       - run:
-          name: Set up cross-compilation for Linux
+          name: Set up cross-compilation for x86_64-unknown-linux-gnu
           command: rustup target add x86_64-unknown-linux-gnu
       - run:
-          name: Build for Linux
+          name: Build for x86_64-unknown-linux-gnu
           command: cargo build --workspace --all-targets --release --target x86_64-unknown-linux-gnu
       - save_cache:
           key: sccache-v1-{{ checksum "Cargo.lock" }}
           paths:
-            - ~/.cargo/registry
-            - ~/.cargo/git
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
             - /tmp/sccache
       - persist_to_workspace:
           root: .
@@ -44,9 +44,83 @@ jobs:
             - target/x86_64-unknown-linux-gnu/release/*
       - store_artifacts:
           path: target/x86_64-unknown-linux-gnu/release/
-          destination: linux-release
+          destination: linux-x86_64-gnu
+
+  build-linux-aarch64-gnu:
+    executor: rust-executor
+    environment:
+      SCCACHE_DIR: "/tmp/sccache"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
+      - run:
+          name: Install sccache
+          command: |
+            cargo install sccache
+            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
+            source $BASH_ENV
+      - run:
+          name: Set up cross-compilation for aarch64-unknown-linux-gnu
+          command: rustup target add aarch64-unknown-linux-gnu
+      - run:
+          name: Build for aarch64-unknown-linux-gnu
+          command: cargo build --workspace --all-targets --release --target aarch64-unknown-linux-gnu
+      - save_cache:
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
+            - /tmp/sccache
+      - persist_to_workspace:
+          root: .
+          paths:
+            - target/aarch64-unknown-linux-gnu/release/*
+      - store_artifacts:
+          path: target/aarch64-unknown-linux-gnu/release/
+          destination: linux-aarch64-gnu
+
+  build-linux-x86_64-musl:
+    executor: rust-executor
+    environment:
+      SCCACHE_DIR: "/tmp/sccache"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
+      - run:
+          name: Install sccache
+          command: |
+            cargo install sccache
+            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
+            source $BASH_ENV
+      - run:
+          name: Set up cross-compilation for x86_64-unknown-linux-musl
+          command: rustup target add x86_64-unknown-linux-musl
+      - run:
+          name: Build for x86_64-unknown-linux-musl
+          command: cargo build --workspace --all-targets --release --target x86_64-unknown-linux-musl
+      - save_cache:
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
+            - /tmp/sccache
+      - persist_to_workspace:
+          root: .
+          paths:
+            - target/x86_64-unknown-linux-musl/release/*
+      - store_artifacts:
+          path: target/x86_64-unknown-linux-musl/release/
+          destination: linux-x86_64-musl
 
 workflows:
   release-pipeline:
     jobs:
-      - build-linux-release
+      - build-linux-x86_64-gnu
+      - build-linux-aarch64-gnu
+      - build-linux-x86_64-musl
