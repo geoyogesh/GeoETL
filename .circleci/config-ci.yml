@@ -1,0 +1,205 @@
+version: 2.1
+
+# Define reusable executors
+executors:
+  rust-executor:
+    docker:
+      - image: rust:1.90.0
+    working_directory: ~/project
+    environment:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+
+# Define jobs
+jobs:
+  # Format check
+  format:
+    executor: rust-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cargo-cache-v1-{{ checksum "Cargo.lock" }}
+            - cargo-cache-v1-
+      - run:
+          name: Install rustfmt
+          command: rustup component add rustfmt
+      - run:
+          name: Check formatting
+          command: cargo fmt --all -- --check
+      - save_cache:
+          key: cargo-cache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
+
+  # Lint with clippy
+  lint:
+    executor: rust-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cargo-cache-v1-{{ checksum "Cargo.lock" }}
+            - cargo-cache-v1-
+      - run:
+          name: Install clippy
+          command: rustup component add clippy
+      - run:
+          name: Run clippy
+          command: cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic
+      - save_cache:
+          key: cargo-cache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
+
+  # Build
+  build:
+    executor: rust-executor
+    environment:
+      SCCACHE_DIR: "/tmp/sccache"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
+      - run:
+          name: Install sccache
+          command: |
+            cargo install sccache
+            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
+            source $BASH_ENV
+      - run:
+          name: Build workspace
+          command: cargo build --workspace --all-targets --release
+      - save_cache:
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
+            - /tmp/sccache
+      - persist_to_workspace:
+          root: .
+          paths:
+            - target/release/*
+
+  # Run tests
+  test:
+    executor: rust-executor
+    environment:
+      SCCACHE_DIR: "/tmp/sccache"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
+      - run:
+          name: Install sccache
+          command: |
+            cargo install sccache
+            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
+            source $BASH_ENV
+      - run:
+          name: Run tests
+          command: cargo test --workspace --all-targets
+      - run:
+          name: Create test results directory
+          command: mkdir -p test-results
+          when: always
+      - store_test_results:
+          path: test-results
+      - save_cache:
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
+            - /tmp/sccache
+
+  # Code coverage
+  coverage:
+    executor: rust-executor
+    environment:
+      SCCACHE_DIR: "/tmp/sccache"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
+      - run:
+          name: Install sccache and cargo-llvm-cov
+          command: |
+            cargo install sccache
+            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
+            source $BASH_ENV
+            cargo install cargo-llvm-cov
+      - run:
+          name: Generate coverage report
+          command: cargo llvm-cov --workspace --all-targets --fail-under-lines 80 --lcov --output-path lcov.info
+      - run:
+          name: Display coverage summary
+          command: cargo llvm-cov --workspace --all-targets --summary-only
+      - store_artifacts:
+          path: lcov.info
+          destination: coverage/lcov.info
+      - save_cache:
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
+            - /tmp/sccache
+
+  # Security audit
+  security:
+    executor: rust-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cargo-cache-v1-{{ checksum "Cargo.lock" }}
+            - cargo-cache-v1-
+      - run:
+          name: Install security tools if not cached
+          command: |
+            if ! command -v cargo-audit &> /dev/null; then
+              echo "Installing cargo-audit"
+              cargo install cargo-audit
+            else
+              echo "cargo-audit is already cached"
+            fi
+            if ! command -v cargo-deny &> /dev/null; then
+              echo "Installing cargo-deny"
+              cargo install cargo-deny
+            else
+              echo "cargo-deny is already cached"
+            fi
+      - run:
+          name: Run security audit
+          command: cargo audit
+      - run:
+          name: Run cargo-deny checks
+          command: cargo deny check
+      - save_cache:
+          key: cargo-cache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
+            - $CARGO_HOME/bin
+
+# Define workflows
+workflows:
+  ci-pipeline:
+    jobs:
+      - format
+      - lint
+      - security
+      - build
+      - test:
+          requires:
+            - build
+      - coverage:
+          requires:
+            - test
