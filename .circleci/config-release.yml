@@ -129,33 +129,16 @@ jobs:
           path: target/x86_64-unknown-linux-musl/release/
           destination: linux-x86_64-musl
 
-  build-macos-x86_64:
+  build-macos-aarch64:
     macos:
       xcode: "15.4.0"
+    resource_class: macos.m1.medium.gen1
     steps:
       - checkout
       - run:
           name: Install Rust
           command: |
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            echo 'source $HOME/.cargo/env' >> $BASH_ENV
-      - run:
-          name: Build for x86_64-apple-darwin
-          command: cargo build --workspace --all-targets --release --target x86_64-apple-darwin
-      - store_artifacts:
-          path: target/x86_64-apple-darwin/release/
-          destination: macos-x86_64
-
-  build-macos-aarch64:
-    macos:
-      xcode: "15.4.0"
-    resource_class: medium
-    steps:
-      - checkout
-      - run:
-          name: Install Rust
-          command: |
-            curl --proto '=httpshttps' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             echo 'source $HOME/.cargo/env' >> $BASH_ENV
       - run:
           name: Build for aarch64-apple-darwin
@@ -170,5 +153,4 @@ workflows:
       - build-linux-x86_64-gnu
       - build-linux-aarch64-gnu
       - build-linux-x86_64-musl
-      - build-macos-x86_64
       - build-macos-aarch64
