@@ -40,7 +40,5 @@ jobs:
 
 workflows:
   release-pipeline:
-    when:
-      equal: [ manual, << pipeline.trigger_source >> ]
     jobs:
       - build-linux-release
