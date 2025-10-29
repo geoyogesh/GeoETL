@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  win: circleci/windows@5.0.0
+
 executors:
   rust-executor:
     docker:
@@ -38,13 +41,9 @@ jobs:
             - $CARGO_HOME/registry
             - $CARGO_HOME/git
             - /tmp/sccache
-      - persist_to_workspace:
-          root: .
-          paths:
-            - target/x86_64-unknown-linux-gnu/release/*
       - store_artifacts:
-          path: target/x86_64-unknown-linux-gnu/release/
-          destination: linux-x86_64-gnu
+          path: target/x86_64-unknown-linux-gnu/release/geoetl-cli
+          destination: geoetl-cli-x86_64-unknown-linux-gnu
 
   build-linux-aarch64-gnu:
     executor: rust-executor
@@ -53,11 +52,18 @@ jobs:
       CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: "aarch64-linux-gnu-gcc"
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - apt-cache-aarch64-v1
       - run:
           name: Install aarch64-linux-gnu-gcc
           command: |
             apt-get update
             apt-get install -y gcc-aarch64-linux-gnu
+      - save_cache:
+          key: apt-cache-aarch64-v1
+          paths:
+            - /var/cache/apt
       - restore_cache:
           keys:
             - sccache-v1-{{ checksum "Cargo.lock" }}
@@ -80,13 +86,9 @@ jobs:
             - $CARGO_HOME/registry
             - $CARGO_HOME/git
             - /tmp/sccache
-      - persist_to_workspace:
-          root: .
-          paths:
-            - target/aarch64-unknown-linux-gnu/release/*
       - store_artifacts:
-          path: target/aarch64-unknown-linux-gnu/release/
-          destination: linux-aarch64-gnu
+          path: target/aarch64-unknown-linux-gnu/release/geoetl-cli
+          destination: geoetl-cli-aarch64-unknown-linux-gnu
 
   build-linux-x86_64-musl:
     executor: rust-executor
@@ -94,11 +96,18 @@ jobs:
       SCCACHE_DIR: "/tmp/sccache"
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - apt-cache-musl-v1
       - run:
           name: Install musl-tools
           command: |
             apt-get update
             apt-get install -y musl-tools
+      - save_cache:
+          key: apt-cache-musl-v1
+          paths:
+            - /var/cache/apt
       - restore_cache:
           keys:
             - sccache-v1-{{ checksum "Cargo.lock" }}
@@ -121,13 +130,9 @@ jobs:
             - $CARGO_HOME/registry
             - $CARGO_HOME/git
             - /tmp/sccache
-      - persist_to_workspace:
-          root: .
-          paths:
-            - target/x86_64-unknown-linux-musl/release/*
       - store_artifacts:
-          path: target/x86_64-unknown-linux-musl/release/
-          destination: linux-x86_64-musl
+          path: target/x86_64-unknown-linux-musl/release/geoetl-cli
+          destination: geoetl-cli-x86_64-unknown-linux-musl
 
   build-macos-aarch64:
     macos:
@@ -144,8 +149,27 @@ jobs:
           name: Build for aarch64-apple-darwin
           command: cargo build --workspace --all-targets --release --target aarch64-apple-darwin
       - store_artifacts:
-          path: target/aarch64-apple-darwin/release/
-          destination: macos-aarch64
+          path: target/aarch64-apple-darwin/release/geoetl-cli
+          destination: geoetl-cli-aarch64-apple-darwin
+
+  build-windows-x86_64-msvc:
+    executor: win/default
+    steps:
+      - checkout
+      - run:
+          name: Install Rust
+          command: |
+            Invoke-WebRequest -Uri https://win.rustup.rs/ -OutFile rustup-init.exe
+            .\rustup-init.exe -y --default-toolchain stable --profile minimal
+            echo 'C:\Users\circleci\.cargo\bin' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          shell: powershell.exe
+      - run:
+          name: Build for x86_64-pc-windows-msvc
+          command: cargo build --workspace --all-targets --release --target x86_64-pc-windows-msvc
+          shell: powershell.exe
+      - store_artifacts:
+          path: target/x86_64-pc-windows-msvc/release/geoetl-cli.exe
+          destination: geoetl-cli-x86_64-pc-windows-msvc.exe
 
 workflows:
   release-pipeline:
@@ -154,3 +178,4 @@ workflows:
       - build-linux-aarch64-gnu
       - build-linux-x86_64-musl
       - build-macos-aarch64
+      - build-windows-x86_64-msvc
