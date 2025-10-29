@@ -161,7 +161,7 @@ jobs:
           command: |
             Invoke-WebRequest -Uri https://win.rustup.rs/ -OutFile rustup-init.exe
             .\rustup-init.exe -y --default-toolchain stable --profile minimal
-            echo 'C:\Users\circleci\.cargo\bin' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            Add-Content -Path $Profile.CurrentUserAllHosts -Value '$env:PATH = "C:\Users\circleci\.cargo\bin;$env:PATH"'
           shell: powershell.exe
       - run:
           name: Build for x86_64-pc-windows-msvc
