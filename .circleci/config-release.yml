@@ -12,12 +12,20 @@ executors:
 jobs:
   build-linux-release:
     executor: rust-executor
+    environment:
+      SCCACHE_DIR: "/tmp/sccache"
     steps:
       - checkout
       - restore_cache:
           keys:
-            - cargo-cache-v1-{{ checksum "Cargo.lock" }}
-            - cargo-cache-v1-
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
+      - run:
+          name: Install sccache
+          command: |
+            cargo install sccache
+            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
+            source $BASH_ENV
       - run:
           name: Set up cross-compilation for Linux
           command: rustup target add x86_64-unknown-linux-gnu
@@ -25,11 +33,11 @@ jobs:
           name: Build for Linux
           command: cargo build --workspace --all-targets --release --target x86_64-unknown-linux-gnu
       - save_cache:
-          key: cargo-cache-v1-{{ checksum "Cargo.lock" }}
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
           paths:
             - ~/.cargo/registry
             - ~/.cargo/git
-            - target
+            - /tmp/sccache
       - persist_to_workspace:
           root: .
           paths:
