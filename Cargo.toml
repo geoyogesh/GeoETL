@@ -13,7 +13,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6-alpha.1"
 authors = ["Yogesh Dhanapal"]
 description = "Modern vector geospatial ETL in Rust. 5-10x faster than GDAL with distributed processing support."
 documentation = "https://geoetl.com"
