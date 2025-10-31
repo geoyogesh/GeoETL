@@ -37,6 +37,13 @@ const config: Config = {
 
   presets: [
     [
+      '@docusaurus/preset-classic',
+      {
+        googleAnalytics: {
+          trackingID: 'G-SY20TD7F3D',
+          anonymizeIP: true,
+        },
+      },
       'classic',
       {
         docs: {
