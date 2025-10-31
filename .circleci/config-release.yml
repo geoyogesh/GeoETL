@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   win: circleci/windows@5.0.0
+  github-cli: circleci/github-cli@2.4.0
 
 executors:
   rust-executor:
@@ -41,9 +42,16 @@ jobs:
             - $CARGO_HOME/registry
             - $CARGO_HOME/git
             - /tmp/sccache
-      - store_artifacts:
-          path: target/x86_64-unknown-linux-gnu/release/geoetl-cli
-          destination: geoetl-cli-x86_64-unknown-linux-gnu
+      - run:
+          name: Create artifacts directory
+          command: mkdir -p /tmp/artifacts
+      - run:
+          name: Copy binary to artifacts directory
+          command: cp target/x86_64-unknown-linux-gnu/release/geoetl-cli /tmp/artifacts/geoetl-cli-x86_64-unknown-linux-gnu
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - artifacts
 
   build-linux-aarch64-gnu:
     executor: rust-executor
@@ -86,9 +94,16 @@ jobs:
             - $CARGO_HOME/registry
             - $CARGO_HOME/git
             - /tmp/sccache
-      - store_artifacts:
-          path: target/aarch64-unknown-linux-gnu/release/geoetl-cli
-          destination: geoetl-cli-aarch64-unknown-linux-gnu
+      - run:
+          name: Create artifacts directory
+          command: mkdir -p /tmp/artifacts
+      - run:
+          name: Copy binary to artifacts directory
+          command: cp target/aarch64-unknown-linux-gnu/release/geoetl-cli /tmp/artifacts/geoetl-cli-aarch64-unknown-linux-gnu
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - artifacts
 
   build-linux-x86_64-musl:
     executor: rust-executor
@@ -130,9 +145,16 @@ jobs:
             - $CARGO_HOME/registry
             - $CARGO_HOME/git
             - /tmp/sccache
-      - store_artifacts:
-          path: target/x86_64-unknown-linux-musl/release/geoetl-cli
-          destination: geoetl-cli-x86_64-unknown-linux-musl
+      - run:
+          name: Create artifacts directory
+          command: mkdir -p /tmp/artifacts
+      - run:
+          name: Copy binary to artifacts directory
+          command: cp target/x86_64-unknown-linux-musl/release/geoetl-cli /tmp/artifacts/geoetl-cli-x86_64-unknown-linux-musl
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - artifacts
 
   build-macos-aarch64:
     macos:
@@ -148,9 +170,16 @@ jobs:
       - run:
           name: Build for aarch64-apple-darwin
           command: cargo build --workspace --all-targets --release --target aarch64-apple-darwin
-      - store_artifacts:
-          path: target/aarch64-apple-darwin/release/geoetl-cli
-          destination: geoetl-cli-aarch64-apple-darwin
+      - run:
+          name: Create artifacts directory
+          command: mkdir -p /tmp/artifacts
+      - run:
+          name: Copy binary to artifacts directory
+          command: cp target/aarch64-apple-darwin/release/geoetl-cli /tmp/artifacts/geoetl-cli-aarch64-apple-darwin
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - artifacts
 
   build-windows-x86_64-msvc:
     executor: win/default
@@ -167,15 +196,78 @@ jobs:
           name: Build for x86_64-pc-windows-msvc
           command: cargo build --workspace --all-targets --release --target x86_64-pc-windows-msvc
           shell: powershell.exe
-      - store_artifacts:
-          path: target/x86_64-pc-windows-msvc/release/geoetl-cli.exe
-          destination: geoetl-cli-x86_64-pc-windows-msvc.exe
+      - run:
+          name: Create artifacts directory
+          command: mkdir artifacts
+          shell: powershell.exe
+      - run:
+          name: Copy binary to artifacts directory
+          command: copy target/x86_64-pc-windows-msvc/release/geoetl-cli.exe artifacts/geoetl-cli-x86_64-pc-windows-msvc.exe
+          shell: powershell.exe
+      - persist_to_workspace:
+          root: .
+          paths:
+            - artifacts
+
+
+  create-github-release:
+    executor: cimg/base:stable
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - github-cli/install
+      - run:
+          name: Create GitHub Release
+          command: |
+            gh release create $CIRCLE_TAG --generate-notes --title "Release $CIRCLE_TAG"
+      - run:
+          name: Upload artifacts to GitHub Release
+          command: |
+            gh release upload $CIRCLE_TAG /tmp/workspace/artifacts/*
+
 
 workflows:
   release-pipeline:
     jobs:
-      - build-linux-x86_64-gnu
-      - build-linux-aarch64-gnu
-      - build-linux-x86_64-musl
-      - build-macos-aarch64
-      - build-windows-x86_64-msvc
+      - build-linux-x86_64-gnu:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - build-linux-aarch64-gnu:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - build-linux-x86_64-musl:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - build-macos-aarch64:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - build-windows-x86_64-msvc:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - create-github-release:
+          requires:
+            - build-linux-x86_64-gnu
+            - build-linux-aarch64-gnu
+            - build-linux-x86_64-musl
+            - build-macos-aarch64
+            - build-windows-x86_64-msvc
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
