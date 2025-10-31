@@ -43,6 +43,6 @@ Here are some of the key features we are building into GeoETL:
 GeoETL is an open-source project, and we are just getting started. We welcome contributions from everyone. Whether you want to report bugs, suggest features, or contribute code, we'd love your help.
 
 *   **GitHub Repository:** [https://github.com/geoyogesh/geoetl](https://github.com/geoyogesh/geoetl)
-*   **Vision Document:** [Read our full vision for the project](docs/VISION.md)
+*   **Vision Document:** [Read our full vision for the project](https://github.com/geoyogesh/geoetl/blob/main/docs/VISION.md)
 
 We are excited about the future of geospatial data processing, and we believe that GeoETL will be a big part of it. Stay tuned for more updates!

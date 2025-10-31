@@ -1,19 +1,80 @@
-facebook:
-  label: Facebook
-  permalink: /facebook
-  description: Facebook tag description
+# GeoETL Blog Tags
 
-hello:
-  label: Hello
-  permalink: /hello
-  description: Hello tag description
+# Project-specific tags
+geoetl:
+  label: GeoETL
+  permalink: /geoetl
+  description: Posts about GeoETL project features and updates
 
-docusaurus:
-  label: Docusaurus
-  permalink: /docusaurus
-  description: Docusaurus tag description
+geospatial:
+  label: Geospatial
+  permalink: /geospatial
+  description: Geospatial data processing and GIS topics
 
-hola:
-  label: Hola
-  permalink: /hola
-  description: Hola tag description
+etl:
+  label: ETL
+  permalink: /etl
+  description: Extract, Transform, Load operations
+
+gis:
+  label: GIS
+  permalink: /gis
+  description: Geographic Information Systems
+
+# Technology tags
+rust:
+  label: Rust
+  permalink: /rust
+  description: Rust programming language
+
+datafusion:
+  label: DataFusion
+  permalink: /datafusion
+  description: Apache DataFusion query engine
+
+arrow:
+  label: Arrow
+  permalink: /arrow
+  description: Apache Arrow columnar format
+
+geoarrow:
+  label: GeoArrow
+  permalink: /geoarrow
+  description: GeoArrow geospatial data format
+
+# Content type tags
+tutorial:
+  label: Tutorial
+  permalink: /tutorial
+  description: Step-by-step guides and tutorials
+
+architecture:
+  label: Architecture
+  permalink: /architecture
+  description: Technical architecture and design
+
+announcement:
+  label: Announcement
+  permalink: /announcement
+  description: Project announcements and releases
+
+release:
+  label: Release
+  permalink: /release
+  description: Release notes and version updates
+
+# Feature tags
+cli:
+  label: CLI
+  permalink: /cli
+  description: Command-line interface features
+
+conversion:
+  label: Conversion
+  permalink: /conversion
+  description: Data format conversion
+
+performance:
+  label: Performance
+  permalink: /performance
+  description: Performance benchmarks and optimization

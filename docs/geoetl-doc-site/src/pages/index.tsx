@@ -21,7 +21,7 @@ function HomepageHeader() {
           <Link
             className="button button--secondary button--lg"
             to="/docs/intro">
-            Docusaurus Tutorial - 5min ⏱️
+            Get Started - 5min ⏱️
           </Link>
         </div>
       </div>
@@ -33,8 +33,8 @@ export default function Home(): ReactNode {
   const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
-      title={`Hello from ${siteConfig.title}`}
-      description="Description will go into a meta tag in <head />">
+      title={`${siteConfig.title} - Modern Geospatial ETL`}
+      description="High-performance geospatial data conversion tool built with Rust, Apache DataFusion, and Apache Arrow. Convert between GeoJSON, CSV, Shapefile, and 68+ formats.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

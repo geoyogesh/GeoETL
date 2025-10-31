@@ -70,6 +70,6 @@ This will display information about the `output.parquet` file, confirming that t
 
 ## What's Next?
 
-You've successfully performed your first data conversion with GeoETL! This is just the beginning. GeoETL supports many other formats and operations. Explore our [User Guide](docs/USERGUIDE.md) to learn more about what you can do with GeoETL.
+You've successfully performed your first data conversion with GeoETL! This is just the beginning. GeoETL supports many other formats and operations. Explore our [User Guide](https://github.com/geoyogesh/geoetl/blob/main/docs/USERGUIDE.md) to learn more about what you can do with GeoETL.
 
 Stay tuned for more tutorials and updates!

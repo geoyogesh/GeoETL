@@ -1,6 +1,6 @@
-# Website
+# GeoETL Documentation Website
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
+This is the documentation website for [GeoETL](https://github.com/geoyogesh/geoetl), built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
 
 ## Installation
 

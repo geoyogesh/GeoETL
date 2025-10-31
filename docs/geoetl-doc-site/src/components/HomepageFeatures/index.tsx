@@ -11,32 +11,35 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Easy to Use',
+    title: 'High Performance',
     Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        Built with Rust for blazing-fast geospatial data conversions.
+        5-10x faster than traditional tools through vectorized execution
+        powered by Apache DataFusion and Apache Arrow.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
+    title: 'Simple to Use',
     Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Download, extract, and start converting. No complex setup required.
+        Convert between GeoJSON, CSV, and more with simple commands.
+        <code>geoetl-cli convert input.geojson output.csv</code>
       </>
     ),
   },
   {
-    title: 'Powered by React',
+    title: '68+ Format Drivers',
     Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Support for all major geospatial formats including GeoJSON, CSV,
+        Shapefile, GeoPackage, and more. Built on GDAL&apos;s proven
+        driver architecture with modern Rust performance.
       </>
     ),
   },

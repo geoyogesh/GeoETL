@@ -2,46 +2,118 @@
 sidebar_position: 1
 ---
 
-# Tutorial Intro
+# Welcome to GeoETL
 
-Let's discover **Docusaurus in less than 5 minutes**.
+**GeoETL** is a modern, high-performance CLI tool for geospatial data conversion and processing, built with Rust and Apache DataFusion.
 
-## Getting Started
+Let's get you started with **GeoETL in less than 5 minutes**.
 
-Get started by **creating a new site**.
+## What is GeoETL?
 
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
+GeoETL is designed to be a next-generation alternative to traditional geospatial ETL tools, offering:
 
-### What you'll need
+- **High Performance**: 5-10x faster processing through vectorized execution
+- **Memory Safety**: Built with Rust for guaranteed memory safety
+- **Modern Architecture**: Leverages Apache DataFusion and Apache Arrow
+- **Scalability**: From single-machine to distributed processing (coming soon)
+- **68+ Format Drivers**: Support for GeoJSON, CSV, Shapefile, GeoPackage, and more
 
-- [Node.js](https://nodejs.org/en/download/) version 20.0 or above:
-  - When installing Node.js, you are recommended to check all checkboxes related to dependencies.
+## What You'll Learn
 
-## Generate a new site
+This tutorial will teach you:
 
-Generate a new Docusaurus site using the **classic template**.
+✅ **Installation** - How to install and build GeoETL
+✅ **Basic Operations** - Converting data between formats
+✅ **Working with Data** - Understanding drivers and formats
+✅ **Advanced Features** - Performance tips and best practices
 
-The classic template will automatically be added to your project after you run the command:
+## What You'll Need
+
+### System Requirements
+
+- **A computer** running Linux, macOS, or Windows
+- **Command-line terminal** - Terminal, PowerShell, or Command Prompt
+- That's it! The pre-built binary is self-contained.
+
+:::note Building from Source
+If you want to build from source instead, you'll need Rust 1.90.0+ and Git.
+See [Installation Guide](./tutorial-basics/installation) for details.
+:::
+
+### Recommended
+
+- Basic command-line knowledge
+- Familiarity with geospatial data formats (GeoJSON, CSV, etc.)
+- A text editor for viewing data files
+
+## Quick Start
+
+Get the latest release from GitHub:
 
 ```bash
-npm init docusaurus@latest my-website classic
+# 1. Download from GitHub Releases
+# https://github.com/geoyogesh/geoetl/releases
+
+# 2. Extract the archive
+tar -xzf geoetl-cli-*.tar.gz  # Linux/macOS
+# or extract the .zip on Windows
+
+# 3. Run your first command
+./geoetl-cli drivers
 ```
 
-You can type this command into Command Prompt, Powershell, Terminal, or any other integrated terminal of your code editor.
+You should see a table of 68+ supported format drivers!
 
-The command also installs all necessary dependencies you need to run Docusaurus.
+**→ See the [Installation Guide](./tutorial-basics/installation) for detailed step-by-step instructions.**
 
-## Start your site
+## Tutorial Structure
 
-Run the development server:
+Get started with these beginner-friendly tutorials:
 
-```bash
-cd my-website
-npm run start
-```
+1. **[Installation Guide](./tutorial-basics/installation)** - Get GeoETL up and running
+2. **[Your First Conversion](./tutorial-basics/first-conversion)** - Convert a GeoJSON file
+3. **[Understanding Drivers](./tutorial-basics/understanding-drivers)** - Learn about format support
+4. **[Working with CSV](./tutorial-basics/working-with-csv)** - CSV and WKT geometries
+5. **[Common Operations](./tutorial-basics/common-operations)** - Essential commands
 
-The `cd` command changes the directory you're working with. In order to work with your newly created Docusaurus site, you'll need to navigate the terminal there.
+## Current Status
 
-The `npm run start` command builds your website locally and serves it through a development server, ready for you to view at http://localhost:3000/.
+GeoETL is in **Phase 1 (Foundation)**. Here's what works today:
 
-Open `docs/intro.md` (this page) and edit some lines: the site **reloads automatically** and displays your changes.
+✅ **Working Now**:
+- CSV format (read/write with WKT geometries)
+- GeoJSON format (full read/write support)
+- Driver registry and capability checking
+- Comprehensive error messages
+
+🚧 **Coming Soon** (Q1-Q2 2026):
+- GeoPackage, Shapefile, Parquet drivers
+- Spatial operations (buffer, intersection, union)
+- CRS transformations
+- Dataset inspection (`info` command)
+
+See our [Roadmap](https://github.com/geoyogesh/geoetl/blob/main/docs/VISION.md) for complete details.
+
+## Getting Help
+
+Need assistance?
+
+- **Documentation**: Browse these tutorials and guides
+- **GitHub Issues**: [Report bugs or request features](https://github.com/geoyogesh/geoetl/issues)
+- **GitHub Discussions**: [Ask questions and share ideas](https://github.com/geoyogesh/geoetl/discussions)
+- **Command Help**: Run `geoetl-cli --help` or `geoetl-cli <command> --help`
+
+## Next Steps
+
+Ready to dive in?
+
+👉 **[Start with the Installation Guide →](./tutorial-basics/installation)**
+
+Or jump to:
+- [Your First Conversion](./tutorial-basics/first-conversion) - Quick hands-on tutorial
+- [Understanding Drivers](./tutorial-basics/understanding-drivers) - Learn format support
+- [Common Operations](./tutorial-basics/common-operations) - Essential commands
+
+---
+
+**Let's get started!** 🚀
