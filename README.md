@@ -3,8 +3,12 @@
 **A modern, high-performance CLI tool for spatial data conversion and processing**
 
 [![CircleCI](https://dl.circleci.com/status-badge/img/circleci/UK2J6T4ubf71ANgcFAB7P/x3Eu8P4L3pc8Mvt6hgBTq/tree/main.svg?style=shield)](https://dl.circleci.com/status-badge/redirect/circleci/UK2J6T4ubf71ANgcFAB7P/x3Eu8P4L3pc8Mvt6hgBTq/tree/main)
+[![style: rustfmt](https://img.shields.io/badge/style-rustfmt-lg.svg)](https://github.com/rust-lang/rustfmt)
 [![Rust](https://img.shields.io/badge/rust-1.90%2B-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
+[![GitHub last commit](https://img.shields.io/github/last-commit/geoyogesh/geoetl)](https://github.com/geoyogesh/geoetl/commits/main)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/geoyogesh/geoetl)](https://github.com/geoyogesh/geoetl/graphs/commit-activity)
+[![Open in Gitpod](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/geoyogesh/geoetl)
 
 GeoETL is a next-generation geospatial ETL (Extract, Transform, Load) tool built with Rust, designed to become a modern replacement for GDAL. It leverages cutting-edge technologies like Apache DataFusion and DataFusion Ballista to deliver blazing-fast performance on both single-node and distributed systems.
 
