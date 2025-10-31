@@ -66,6 +66,10 @@ const config: Config = {
           trackingID: 'G-SY20TD7F3D',
           anonymizeIP: true,
         },
+        gtag: {
+          trackingID: 'G-SY20TD7F3D',
+          anonymizeIP: true,
+        },
       } satisfies Preset.Options,
     ],
   ],
