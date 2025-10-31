@@ -179,7 +179,7 @@ jobs:
             .\rustup-init.exe -y --default-toolchain stable --profile minimal
             Add-Content -Path $Profile.CurrentUserAllHosts -Value '$env:PATH = "C:\Users\circleci\.cargo\bin;$env:PATH"'
             . $Profile.CurrentUserAllHosts
-            cargo install sccache
+            cargo install sccache --version 0.8.1
           shell: powershell.exe
       - run:
           name: Build for x86_64-pc-windows-msvc

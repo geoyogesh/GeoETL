@@ -13,6 +13,7 @@ This guide is for developers who want to contribute to GeoETL or build it from s
 - [Development Workflow](#development-workflow)
 - [License and Security Checks](#license-and-security-checks)
 - [Pre-Commit Checklist](#pre-commit-checklist)
+- [Releasing](#releasing)
 - [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
@@ -554,16 +555,6 @@ All in one command using make:
 make check
 ```
 
-Or using cargo commands directly:
-```bash
-cargo fmt --all && \
-cargo clippy --workspace --all-targets -- -D warnings -D clippy::pedantic && \
-cargo test --workspace --all-targets && \
-cargo audit && \
-cargo deny check && \
-cargo llvm-cov --workspace --all-targets --open --fail-under-lines 80
-```
-
 ### Makefile Tasks
 
 Common workflows are available through the Makefile:
@@ -576,6 +567,48 @@ make coverage       # generate coverage summary (text)
 make coverage-open  # generate and open coverage report in browser
 make check          # fmt + lint + test + security + coverage (complete CI check)
 ```
+
+## Releasing
+
+This project uses `cargo-release` to automate the release process.
+
+### Dry Run
+
+By default, `cargo-release` runs in dry-run mode. It will show you the steps it would take without actually making any changes.
+
+**Patch Release:**
+```bash
+cargo release patch --verbose
+```
+
+**Minor Release:**
+```bash
+cargo release minor --verbose
+```
+
+**Major Release:**
+```bash
+cargo release major --verbose
+```
+
+**Pre-release (beta):**
+```bash
+cargo release beta --verbose
+```
+
+### Execute Release
+
+To perform the actual release, add the `--execute` flag.
+
+```bash
+cargo release patch --execute --verbose
+```
+
+This will:
+1.  Bump the version in `Cargo.toml`.
+2.  Create a new git tag.
+3.  Push the changes to the remote repository.
+4.  Publish the crate to `crates.io` (if configured).
 
 ## Documentation
 
