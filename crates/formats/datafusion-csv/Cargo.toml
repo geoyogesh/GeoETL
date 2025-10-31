@@ -1,0 +1,36 @@
+[package]
+name = "datafusion-csv"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-cast = { workspace = true }
+arrow-schema = { workspace = true }
+arrow-csv = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+csv-async = { workspace = true }
+datafusion = { workspace = true }
+datafusion-common = { workspace = true }
+datafusion-execution = { workspace = true }
+datafusion-physical-expr = { workspace = true }
+datafusion-session = { workspace = true }
+datafusion-shared = { path = "../datafusion-shared" }
+futures = { workspace = true }
+object_store = { workspace = true, features = ["aws", "azure", "gcp", "http"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio-util = { workspace = true }
+url = { workspace = true }
+geoarrow-array = { workspace = true, features = ["geozero"] }
+geoarrow-schema = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+geo-traits = { workspace = true }

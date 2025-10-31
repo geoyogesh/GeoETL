@@ -1,0 +1,29 @@
+[package]
+name = "geoetl-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow.workspace = true
+log.workspace = true
+tokio.workspace = true
+datafusion.workspace = true
+geoarrow-schema.workspace = true
+geoarrow-array.workspace = true
+arrow-schema.workspace = true
+datafusion-csv = { path = "../formats/datafusion-csv" }
+datafusion-geojson = { path = "../formats/datafusion-geojson" }
+
+[package.metadata.docs.rs]
+# Configure docs.rs to build documentation for this crate
+# For more options, see https://docs.rs/about/builds#build-script-options
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dev-dependencies]
+# For doc tests
+anyhow.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tempfile.workspace = true

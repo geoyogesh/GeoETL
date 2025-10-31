@@ -1,0 +1,35 @@
+version: 2.1
+setup: true
+
+orbs:
+  continuation: circleci/continuation@0.3.0
+
+jobs:
+  select-config:
+    docker:
+      - image: cimg/base:2023.01
+    steps:
+      - checkout
+      - run:
+          name: Select configuration
+          command: |
+            if [ -n "$CIRCLE_PULL_REQUEST" ]; then
+              echo "Pull request detected, using CI configuration"
+              cp .circleci/config-ci.yml generated_config.yml
+            elif [ "<< pipeline.trigger_source >>" = "manual" ] || [ "<< pipeline.trigger_source >>" = "api" ]; then
+              echo "Manual trigger detected, using release configuration"
+              cp .circleci/config-release.yml generated_config.yml
+            else
+              echo "No pull request or manual trigger detected, not running any workflow"
+              echo "version: 2.1" > generated_config.yml
+              echo "workflows:" >> generated_config.yml
+              echo "  empty-workflow:" >> generated_config.yml
+              echo "    jobs: []" >> generated_config.yml
+            fi
+      - continuation/continue:
+          configuration_path: generated_config.yml
+
+workflows:
+  setup:
+    jobs:
+      - select-config

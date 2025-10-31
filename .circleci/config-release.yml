@@ -1,0 +1,272 @@
+version: 2.1
+
+orbs:
+  win: circleci/windows@5.0.0
+  github-cli: circleci/github-cli@2.4.0
+
+executors:
+  rust-executor:
+    docker:
+      - image: rust:1.90.0
+    working_directory: ~/project
+    environment:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+
+  rust-musl-executor:
+    docker:
+      - image: rust:1.90.0-alpine
+    working_directory: ~/project
+    environment:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+
+jobs:
+  build-linux-x86_64-gnu:
+    executor: rust-executor
+    environment:
+      SCCACHE_DIR: "/tmp/sccache"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
+      - run:
+          name: Install sccache
+          command: |
+            cargo install sccache
+            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
+            source $BASH_ENV
+      - run:
+          name: Set up cross-compilation for x86_64-unknown-linux-gnu
+          command: rustup target add x86_64-unknown-linux-gnu
+      - run:
+          name: Build for x86_64-unknown-linux-gnu
+          command: cargo build --workspace --all-targets --release --target x86_64-unknown-linux-gnu
+      - save_cache:
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
+            - /tmp/sccache
+      - run:
+          name: Create artifacts directory
+          command: mkdir -p /tmp/artifacts
+      - run:
+          name: Copy binary to artifacts directory
+          command: cp target/x86_64-unknown-linux-gnu/release/geoetl-cli /tmp/artifacts/geoetl-cli-x86_64-unknown-linux-gnu
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - artifacts
+
+  build-linux-aarch64-gnu:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: arm.medium
+    environment:
+      SCCACHE_DIR: "/tmp/sccache"
+    steps:
+      - checkout
+      - run:
+          name: Install Rust and sccache
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            echo 'source $HOME/.cargo/env' >> $BASH_ENV
+            source $BASH_ENV
+            cargo install sccache
+            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
+            source $BASH_ENV
+      - restore_cache:
+          keys:
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
+      - run:
+          name: Build for aarch64-unknown-linux-gnu
+          command: cargo build --workspace --all-targets --release --target aarch64-unknown-linux-gnu
+      - save_cache:
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - ~/.cargo/registry
+            - ~/.cargo/git
+            - /tmp/sccache
+      - run:
+          name: Create artifacts directory
+          command: mkdir -p /tmp/artifacts
+      - run:
+          name: Copy binary to artifacts directory
+          command: cp target/aarch64-unknown-linux-gnu/release/geoetl-cli /tmp/artifacts/geoetl-cli-aarch64-unknown-linux-gnu
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - artifacts
+
+  build-linux-x86_64-musl:
+    executor: rust-musl-executor
+    environment:
+      SCCACHE_DIR: "/tmp/sccache"
+    steps:
+      - checkout
+      - run:
+          name: Install build dependencies
+          command: apk add --no-cache sccache musl-dev
+      - restore_cache:
+          keys:
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
+      - run:
+          name: Build for x86_64-unknown-linux-musl
+          environment:
+            RUSTC_WRAPPER: /usr/bin/sccache
+          command: cargo build --workspace --all-targets --release --target x86_64-unknown-linux-musl
+      - save_cache:
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - $CARGO_HOME/registry
+            - $CARGO_HOME/git
+            - /tmp/sccache
+      - run:
+          name: Create artifacts directory
+          command: mkdir -p /tmp/artifacts
+      - run:
+          name: Copy binary to artifacts directory
+          command: cp target/x86_64-unknown-linux-musl/release/geoetl-cli /tmp/artifacts/geoetl-cli-x86_64-unknown-linux-musl
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - artifacts
+
+  build-macos-aarch64:
+    macos:
+      xcode: "15.4.0"
+    resource_class: macos.m1.medium.gen1
+    steps:
+      - checkout
+      - run:
+          name: Install Rust
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            echo 'source $HOME/.cargo/env' >> $BASH_ENV
+      - run:
+          name: Build for aarch64-apple-darwin
+          command: cargo build --workspace --all-targets --release --target aarch64-apple-darwin
+      - run:
+          name: Create artifacts directory
+          command: mkdir -p /tmp/artifacts
+      - run:
+          name: Copy binary to artifacts directory
+          command: cp target/aarch64-apple-darwin/release/geoetl-cli /tmp/artifacts/geoetl-cli-aarch64-apple-darwin
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - artifacts
+
+  build-windows-x86_64-msvc:
+    executor: win/default
+    environment:
+      SCCACHE_DIR: 'C:\Users\circleci\AppData\Local\sccache'
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
+      - run:
+          name: Install Rust and sccache
+          command: |
+            Invoke-WebRequest -Uri https://win.rustup.rs/ -OutFile rustup-init.exe
+            .\rustup-init.exe -y --default-toolchain stable --profile minimal
+            Add-Content -Path $Profile.CurrentUserAllHosts -Value '$env:PATH = "C:\Users\circleci\.cargo\bin;$env:PATH"'
+            . $Profile.CurrentUserAllHosts
+            cargo install sccache --version 0.8.1
+          shell: powershell.exe
+      - run:
+          name: Build for x86_64-pc-windows-msvc
+          environment:
+            RUSTC_WRAPPER: 'C:\Users\circleci\.cargo\bin\sccache.exe'
+          command: cargo build --workspace --all-targets --release --target x86_64-pc-windows-msvc
+          shell: powershell.exe
+      - save_cache:
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - 'C:\Users\circleci\.cargo\registry'
+            - 'C:\Users\circleci\.cargo\git'
+            - 'C:\Users\circleci\AppData\Local\sccache'
+      - run:
+          name: Create artifacts directory
+          command: mkdir artifacts
+          shell: powershell.exe
+      - run:
+          name: Copy binary to artifacts directory
+          command: copy target/x86_64-pc-windows-msvc/release/geoetl-cli.exe artifacts/geoetl-cli-x86_64-pc-windows-msvc.exe
+          shell: powershell.exe
+      - persist_to_workspace:
+          root: .
+          paths:
+            - artifacts
+
+
+  create-github-release:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/workspace
+      - github-cli/install
+      - run:
+          name: Create GitHub Release
+          command: |
+            gh release create $CIRCLE_TAG --generate-notes --title "Release $CIRCLE_TAG"
+      - run:
+          name: Upload artifacts to GitHub Release
+          command: |
+            gh release upload $CIRCLE_TAG /tmp/workspace/artifacts/*
+
+
+workflows:
+  release-pipeline:
+    jobs:
+      - build-linux-x86_64-gnu:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - build-linux-aarch64-gnu:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - build-linux-x86_64-musl:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - build-macos-aarch64:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - build-windows-x86_64-msvc:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - create-github-release:
+          requires:
+            - build-linux-x86_64-gnu
+            - build-linux-aarch64-gnu
+            - build-linux-x86_64-musl
+            - build-macos-aarch64
+            - build-windows-x86_64-msvc
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/

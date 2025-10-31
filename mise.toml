@@ -1,0 +1,9 @@
+[tools]
+rust = "1.90.0"
+"cargo:taplo-cli" = "latest"
+"cargo:cargo-audit" = "latest"
+"cargo:cargo-deny" = "latest"
+"cargo:cargo-llvm-cov" = "latest"
+"cargo:cargo-outdated" = "latest"
+"cargo:cargo-edit" = "latest"
+"cargo:cargo-release" = "latest"
