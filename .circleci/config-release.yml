@@ -13,6 +13,14 @@ executors:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
 
+  rust-musl-executor:
+    docker:
+      - image: rust:1.90.0-alpine
+    working_directory: ~/project
+    environment:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+
 jobs:
   build-linux-x86_64-gnu:
     executor: rust-executor
@@ -54,45 +62,34 @@ jobs:
             - artifacts
 
   build-linux-aarch64-gnu:
-    executor: rust-executor
+    machine:
+      image: ubuntu-2204:current
+    resource_class: arm.medium
     environment:
       SCCACHE_DIR: "/tmp/sccache"
-      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: "aarch64-linux-gnu-gcc"
     steps:
       - checkout
-      - restore_cache:
-          keys:
-            - apt-cache-aarch64-v1
       - run:
-          name: Install aarch64-linux-gnu-gcc
+          name: Install Rust and sccache
           command: |
-            apt-get update
-            apt-get install -y gcc-aarch64-linux-gnu
-      - save_cache:
-          key: apt-cache-aarch64-v1
-          paths:
-            - /var/cache/apt
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            echo 'source $HOME/.cargo/env' >> $BASH_ENV
+            source $BASH_ENV
+            cargo install sccache
+            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
+            source $BASH_ENV
       - restore_cache:
           keys:
             - sccache-v1-{{ checksum "Cargo.lock" }}
             - sccache-v1-
-      - run:
-          name: Install sccache
-          command: |
-            cargo install sccache
-            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
-            source $BASH_ENV
-      - run:
-          name: Set up cross-compilation for aarch64-unknown-linux-gnu
-          command: rustup target add aarch64-unknown-linux-gnu
       - run:
           name: Build for aarch64-unknown-linux-gnu
           command: cargo build --workspace --all-targets --release --target aarch64-unknown-linux-gnu
       - save_cache:
           key: sccache-v1-{{ checksum "Cargo.lock" }}
           paths:
-            - $CARGO_HOME/registry
-            - $CARGO_HOME/git
+            - ~/.cargo/registry
+            - ~/.cargo/git
             - /tmp/sccache
       - run:
           name: Create artifacts directory
@@ -106,38 +103,22 @@ jobs:
             - artifacts
 
   build-linux-x86_64-musl:
-    executor: rust-executor
+    executor: rust-musl-executor
     environment:
       SCCACHE_DIR: "/tmp/sccache"
     steps:
       - checkout
-      - restore_cache:
-          keys:
-            - apt-cache-musl-v1
       - run:
-          name: Install musl-tools
-          command: |
-            apt-get update
-            apt-get install -y musl-tools
-      - save_cache:
-          key: apt-cache-musl-v1
-          paths:
-            - /var/cache/apt
+          name: Install build dependencies
+          command: apk add --no-cache sccache musl-dev
       - restore_cache:
           keys:
             - sccache-v1-{{ checksum "Cargo.lock" }}
             - sccache-v1-
       - run:
-          name: Install sccache
-          command: |
-            cargo install sccache
-            echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
-            source $BASH_ENV
-      - run:
-          name: Set up cross-compilation for x86_64-unknown-linux-musl
-          command: rustup target add x86_64-unknown-linux-musl
-      - run:
           name: Build for x86_64-unknown-linux-musl
+          environment:
+            RUSTC_WRAPPER: /usr/bin/sccache
           command: cargo build --workspace --all-targets --release --target x86_64-unknown-linux-musl
       - save_cache:
           key: sccache-v1-{{ checksum "Cargo.lock" }}
@@ -183,19 +164,35 @@ jobs:
 
   build-windows-x86_64-msvc:
     executor: win/default
+    environment:
+      SCCACHE_DIR: 'C:\Users\circleci\AppData\Local\sccache'
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - sccache-v1-{{ checksum "Cargo.lock" }}
+            - sccache-v1-
       - run:
-          name: Install Rust
+          name: Install Rust and sccache
           command: |
             Invoke-WebRequest -Uri https://win.rustup.rs/ -OutFile rustup-init.exe
             .\rustup-init.exe -y --default-toolchain stable --profile minimal
             Add-Content -Path $Profile.CurrentUserAllHosts -Value '$env:PATH = "C:\Users\circleci\.cargo\bin;$env:PATH"'
+            . $Profile.CurrentUserAllHosts
+            cargo install sccache
           shell: powershell.exe
       - run:
           name: Build for x86_64-pc-windows-msvc
+          environment:
+            RUSTC_WRAPPER: 'C:\Users\circleci\.cargo\bin\sccache.exe'
           command: cargo build --workspace --all-targets --release --target x86_64-pc-windows-msvc
           shell: powershell.exe
+      - save_cache:
+          key: sccache-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - 'C:\Users\circleci\.cargo\registry'
+            - 'C:\Users\circleci\.cargo\git'
+            - 'C:\Users\circleci\AppData\Local\sccache'
       - run:
           name: Create artifacts directory
           command: mkdir artifacts
@@ -214,6 +211,7 @@ jobs:
     docker:
       - image: cimg/base:stable
     steps:
+      - checkout
       - attach_workspace:
           at: /tmp/workspace
       - github-cli/install
