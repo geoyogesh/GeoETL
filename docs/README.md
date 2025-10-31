@@ -73,7 +73,7 @@ See the development guides for contribution guidelines:
 | Component | Version |
 |-----------|---------|
 | DataFusion | 50.1.0 |
-| Arrow | 56 |
+| Arrow | 56  |
 | geoarrow | 0.6.1 |
 
 See [Documentation Review](DOCUMENTATION_REVIEW.md) for version compatibility matrix.
