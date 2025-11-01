@@ -1,3 +1,4 @@
+pub mod factory;
 mod file_format;
 mod file_source;
 mod parser;
@@ -5,6 +6,7 @@ mod physical_exec;
 mod sink;
 mod writer;
 
+pub use factory::register_geojson_format;
 pub use file_format::GeoJsonFormatOptions;
 pub use file_source::GeoJsonSourceBuilder;
 pub use sink::{GeoJsonSink, GeoJsonWriterExec};

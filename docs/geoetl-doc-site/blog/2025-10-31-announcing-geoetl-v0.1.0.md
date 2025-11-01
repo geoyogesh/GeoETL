@@ -292,7 +292,7 @@ We're grateful to learn from and build upon your work.
 **GitHub**: [https://github.com/geoyogesh/geoetl](https://github.com/geoyogesh/geoetl)
 
 **Documentation**:
-- [User Guide](https://github.com/geoyogesh/geoetl/blob/main/docs/USERGUIDE.md)
+- [Documentation Website](https://geoetl.com)
 - [Development Guide](https://github.com/geoyogesh/geoetl/blob/main/docs/DEVELOPMENT.md)
 - [Vision Document](https://github.com/geoyogesh/geoetl/blob/main/docs/VISION.md)
 - [Architecture Decisions](https://github.com/geoyogesh/geoetl/tree/main/docs/adr)
@@ -312,6 +312,6 @@ Let's make geospatial data processing faster, safer, and more accessible for eve
 
 ---
 
-**Ready to get started?** Check out our [Getting Started Guide](https://github.com/geoyogesh/geoetl/blob/main/docs/USERGUIDE.md) and join the discussion on [GitHub](https://github.com/geoyogesh/geoetl).
+**Ready to get started?** Check out our [Getting Started Guide](https://geoetl.com) and join the discussion on [GitHub](https://github.com/geoyogesh/geoetl).
 
 *Have questions or feedback? Drop a comment below or [open a discussion](https://github.com/geoyogesh/geoetl/discussions) on GitHub!*

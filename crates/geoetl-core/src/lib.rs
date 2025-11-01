@@ -23,6 +23,8 @@
 //! ```
 
 pub mod drivers;
+pub mod error;
+pub mod init;
 pub mod operations;
 pub mod types;
 pub mod utils;

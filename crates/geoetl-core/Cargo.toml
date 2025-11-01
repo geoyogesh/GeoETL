@@ -9,11 +9,13 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 log.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 datafusion.workspace = true
 geoarrow-schema.workspace = true
 geoarrow-array.workspace = true
 arrow-schema.workspace = true
+geoetl-core-common = { path = "../geoetl-core-common" }
 datafusion-csv = { path = "../formats/datafusion-csv" }
 datafusion-geojson = { path = "../formats/datafusion-geojson" }
 

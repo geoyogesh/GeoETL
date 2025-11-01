@@ -3,6 +3,7 @@ version: 2.1
 orbs:
   win: circleci/windows@5.0.0
   github-cli: circleci/github-cli@2.4.0
+  node: circleci/node@7.2.1
 
 executors:
   rust-executor:
@@ -224,6 +225,59 @@ jobs:
           command: |
             gh release upload $CIRCLE_TAG /tmp/workspace/artifacts/*
 
+  deploy-docs:
+    executor: node/default
+    steps:
+      - checkout
+
+      - run:
+          name: Install Wrangler CLI
+          command: sudo npm install -g wrangler
+
+      - node/install-packages:
+          app-dir: docs/geoetl-doc-site
+          pkg-manager: yarn
+
+      - run:
+          name: Check environment variables
+          command: |
+            echo "Checking if CLOUDFLARE_API_TOKEN is set..."
+            if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+              echo "ERROR: CLOUDFLARE_API_TOKEN is NOT set"
+              echo "Please add it to the 'cloudflare-deployment' context in CircleCI"
+              exit 1
+            else
+              echo "✓ CLOUDFLARE_API_TOKEN is set"
+            fi
+
+            echo "Checking if CLOUDFLARE_ACCOUNT_ID is set..."
+            if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+              echo "ERROR: CLOUDFLARE_ACCOUNT_ID is NOT set"
+              echo "Please add it to the 'cloudflare-deployment' context in CircleCI"
+              exit 1
+            else
+              echo "✓ CLOUDFLARE_ACCOUNT_ID is set"
+            fi
+
+      - run:
+          name: Build documentation
+          working_directory: docs/geoetl-doc-site
+          command: yarn build
+
+      - run:
+          name: Deploy to Cloudflare Pages
+          working_directory: docs/geoetl-doc-site
+          command: |
+            # Deploy using Wrangler (always to production)
+            wrangler pages deploy build \
+              --project-name=geoetl-web-circleci \
+              --branch="main" \
+              --commit-hash="${CIRCLE_SHA1}"
+
+      - run:
+          name: Show deployment URL
+          command: |
+            echo "Production: https://geoetl-web-circleci.pages.dev"
 
 workflows:
   release-pipeline:
@@ -265,6 +319,15 @@ workflows:
             - build-linux-x86_64-musl
             - build-macos-aarch64
             - build-windows-x86_64-msvc
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+            branches:
+              ignore: /.*/
+      - deploy-docs:
+          context: cloudflare-deployment
+          requires:
+            - create-github-release
           filters:
             tags:
               only: /v[0-9]+(\.[0-9]+)*(-.*)*/

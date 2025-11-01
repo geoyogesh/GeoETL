@@ -154,7 +154,7 @@ geoetl-cli info --detailed --stats data.geojson
 ## Documentation
 
 ### For Users
-- **[User Guide](docs/USERGUIDE.md)**: Complete guide to using GeoETL with detailed examples
+- **[Documentation Website](https://geoetl.com)**: Complete guide to using GeoETL with detailed examples
 - **[Quick Reference](docs/QUICKREF.md)**: Fast command reference and cheat sheet
 
 ### For Developers
@@ -240,7 +240,7 @@ GeoETL is committed to leveraging and contributing back to the GeoRust ecosystem
 
 ## Getting Help
 
-- **Documentation**: Check the [User Guide](docs/USERGUIDE.md) for detailed usage instructions
+- **Documentation**: Check the [Documentation Website](https://geoetl.com) for detailed usage instructions
 - **Command Help**: Run `geoetl-cli --help` or `geoetl-cli <command> --help`
 - **Issues**: Report bugs at [GitHub Issues](https://github.com/yourusername/geoetl/issues)
 - **Questions**: Ask questions in [GitHub Discussions](https://github.com/yourusername/geoetl/discussions)

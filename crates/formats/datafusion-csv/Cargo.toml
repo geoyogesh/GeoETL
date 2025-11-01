@@ -30,6 +30,8 @@ tokio-util = { workspace = true }
 url = { workspace = true }
 geoarrow-array = { workspace = true, features = ["geozero"] }
 geoarrow-schema = { workspace = true }
+geoetl-core-common = { path = "../../geoetl-core-common" }
+anyhow = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

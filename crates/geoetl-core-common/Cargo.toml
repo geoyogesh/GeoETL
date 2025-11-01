@@ -1,0 +1,15 @@
+[package]
+name = "geoetl-core-common"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+datafusion.workspace = true
+arrow-schema.workspace = true

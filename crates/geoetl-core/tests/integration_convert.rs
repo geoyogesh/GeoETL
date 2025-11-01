@@ -79,6 +79,9 @@ fn create_sample_geojson(path: &std::path::Path) -> std::io::Result<()> {
 
 #[tokio::test]
 async fn test_e2e_csv_to_csv_conversion() {
+    // Initialize format drivers
+    geoetl_core::init::initialize();
+
     let temp_dir = TempDir::new().unwrap();
     let input_path = temp_dir.path().join("input_data.csv");
     let output_path = temp_dir.path().join("output_data.csv");
@@ -118,6 +121,9 @@ async fn test_e2e_csv_to_csv_conversion() {
 
 #[tokio::test]
 async fn test_e2e_geojson_to_geojson_conversion() {
+    // Initialize format drivers
+    geoetl_core::init::initialize();
+
     let temp_dir = TempDir::new().unwrap();
     let input_path = temp_dir.path().join("cities.geojson");
     let output_path = temp_dir.path().join("cities_output.geojson");
@@ -156,6 +162,9 @@ async fn test_e2e_geojson_to_geojson_conversion() {
 
 #[tokio::test]
 async fn test_e2e_large_csv_conversion() {
+    // Initialize format drivers
+    geoetl_core::init::initialize();
+
     let temp_dir = TempDir::new().unwrap();
     let input_path = temp_dir.path().join("large_data.csv");
     let output_path = temp_dir.path().join("large_output.csv");
@@ -197,6 +206,9 @@ async fn test_e2e_large_csv_conversion() {
 
 #[tokio::test]
 async fn test_e2e_driver_validation() {
+    // Initialize format drivers
+    geoetl_core::init::initialize();
+
     let temp_dir = TempDir::new().unwrap();
     let input_path = temp_dir.path().join("test.csv");
     let output_path = temp_dir.path().join("output.shp");
@@ -232,16 +244,20 @@ async fn test_e2e_driver_validation() {
     .await;
 
     assert!(result.is_err());
+    let error_msg = result.unwrap_err().to_string();
+    // After factory refactoring, unregistered drivers produce a "not registered" error
+    // OR "is not yet implemented" for the write path which still uses a switch statement
     assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("is not yet implemented for conversion")
+        error_msg.contains("not registered") || error_msg.contains("is not yet implemented"),
+        "Unexpected error message: {error_msg}"
     );
 }
 
 #[tokio::test]
 async fn test_e2e_csv_with_special_characters() {
+    // Initialize format drivers
+    geoetl_core::init::initialize();
+
     let temp_dir = TempDir::new().unwrap();
     let input_path = temp_dir.path().join("special.csv");
     let output_path = temp_dir.path().join("special_output.csv");
@@ -276,6 +292,9 @@ async fn test_e2e_csv_with_special_characters() {
 
 #[tokio::test]
 async fn test_e2e_multiple_conversions_same_session() {
+    // Initialize format drivers
+    geoetl_core::init::initialize();
+
     let temp_dir = TempDir::new().unwrap();
 
     // First conversion
