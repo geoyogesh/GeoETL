@@ -19,9 +19,9 @@ This guide is based on the following versions:
 
 For detailed usage and implementation guides for supported formats:
 
-- **CSV with WKT Geometries**: See [`docs/formats/csv-user-guide.md`](formats/csv-user-guide.md) and [`docs/formats/csv-development.md`](formats/csv-development.md)
+- **CSV with WKT Geometries**: See [`crates/formats/datafusion-csv/docs/csv-user-guide.md`](../crates/formats/datafusion-csv/docs/csv-user-guide.md) and [`crates/formats/datafusion-csv/docs/csv-development.md`](../crates/formats/datafusion-csv/docs/csv-development.md)
   - Reference Implementation: [`crates/formats/datafusion-csv`](../crates/formats/datafusion-csv/)
-- **GeoJSON**: See [`docs/formats/geojson-user-guide.md`](formats/geojson-user-guide.md) and [`docs/formats/geojson-development.md`](formats/geojson-development.md)
+- **GeoJSON**: See [`crates/formats/datafusion-geojson/docs/geojson-user-guide.md`](../crates/formats/datafusion-geojson/docs/geojson-user-guide.md) and [`crates/formats/datafusion-geojson/docs/geojson-development.md`](../crates/formats/datafusion-geojson/docs/geojson-development.md)
   - Reference Implementation: [`crates/formats/datafusion-geojson`](../crates/formats/datafusion-geojson/)
 
 These guides provide concrete examples, API references, and best practices for working with these formats in production. The reference implementations demonstrate all concepts covered in this guide.
