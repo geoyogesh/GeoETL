@@ -1,0 +1,91 @@
+# Cloudflare Pages Deployment Pipeline
+#
+# Setup (CircleCI):
+#   1. Go to CircleCI → Organization Settings → Contexts
+#   2. Create context: cloudflare-deployment
+#   3. Click on the context and add environment variables:
+#
+#      CLOUDFLARE_API_TOKEN:
+#        a. Go to Cloudflare Dashboard → My Profile → API Tokens
+#        b. Click "Create Token" → "Create Custom Token"
+#        c. Set permissions: Account / Cloudflare Pages / Edit
+#        d. Click "Continue to summary" → "Create Token"
+#        e. Copy the token and add it to CircleCI context
+#
+#      CLOUDFLARE_ACCOUNT_ID:
+#        a. Go to Cloudflare Dashboard → Workers & Pages
+#        b. Copy Account ID from the right sidebar
+#        c. Add it to CircleCI context
+#
+# Setup (Cloudflare):
+#   1. Create Pages project: geoetl-web-circleci
+#   2. Do NOT connect to GitHub (we deploy via API)
+#
+# Deploy URL:
+#   - Production: https://geoetl-web-circleci.pages.dev (always deploys to main)
+
+version: 2.1
+
+orbs:
+  node: circleci/node@7.2.1
+
+jobs:
+  deploy-docs:
+    executor: node/default
+    steps:
+      - checkout
+
+      - run:
+          name: Install Wrangler CLI
+          command: sudo npm install -g wrangler
+
+      - node/install-packages:
+          app-dir: docs/geoetl-doc-site
+          pkg-manager: yarn
+
+      - run:
+          name: Build documentation
+          working_directory: docs/geoetl-doc-site
+          command: yarn build
+
+      - run:
+          name: Check environment variables
+          command: |
+            echo "Checking if CLOUDFLARE_API_TOKEN is set..."
+            if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+              echo "ERROR: CLOUDFLARE_API_TOKEN is NOT set"
+              echo "Please add it to the 'cloudflare-deployment' context in CircleCI"
+              exit 1
+            else
+              echo "✓ CLOUDFLARE_API_TOKEN is set"
+            fi
+
+            echo "Checking if CLOUDFLARE_ACCOUNT_ID is set..."
+            if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+              echo "ERROR: CLOUDFLARE_ACCOUNT_ID is NOT set"
+              echo "Please add it to the 'cloudflare-deployment' context in CircleCI"
+              exit 1
+            else
+              echo "✓ CLOUDFLARE_ACCOUNT_ID is set"
+            fi
+
+      - run:
+          name: Deploy to Cloudflare Pages
+          working_directory: docs/geoetl-doc-site
+          command: |
+            # Deploy using Wrangler (always to production)
+            wrangler pages deploy build \
+              --project-name=geoetl-web-circleci \
+              --branch="main" \
+              --commit-hash="${CIRCLE_SHA1}"
+
+      - run:
+          name: Show deployment URL
+          command: |
+            echo "Production: https://geoetl-web-circleci.pages.dev"
+
+workflows:
+  deploy:
+    jobs:
+      - deploy-docs:
+          context: cloudflare-deployment
