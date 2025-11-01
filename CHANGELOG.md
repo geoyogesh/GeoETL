@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-11-01
+
+### Added
+
+- **Custom Error Types**: Implemented comprehensive error handling system with `GeoEtlError` enum
+  - Added specialized error types for IO, driver, format, conversion, validation, configuration, data processing, and geometry operations
+  - Integrated error types across CLI, core, and operations crates
+  - All error handling tests passing
+- **Automated Documentation Deployment**: Integrated Cloudflare Pages deployment into release workflow
+  - Documentation automatically deploys to production after GitHub release creation
+  - Deployed to https://geoetl-web-circleci.pages.dev on every release tag
+  - Uses CircleCI with Wrangler CLI for deployment
+
+### Changed
+
+- **Documentation Reorganization**:
+  - Removed redundant `docs/USERGUIDE.md` (content already on website at https://geoetl.com)
+  - Updated all references in README.md, QUICKREF.md, DEVELOPMENT.md to point to website
+  - Moved format-specific documentation to package directories:
+    - `docs/formats/csv-*.md` → `crates/formats/datafusion-csv/docs/`
+    - `docs/formats/geojson-*.md` → `crates/formats/datafusion-geojson/docs/`
+  - Updated `DATAFUSION_GEOSPATIAL_FORMAT_INTEGRATION_GUIDE.md` with new documentation paths
+
+### Removed
+
+- `docs/USERGUIDE.md` - Superseded by documentation website
+- `docs/formats/` directory - Documentation moved to respective package directories
+
 ## [0.1.0] - 2025-10-31
 
 ### Added
