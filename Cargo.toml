@@ -8,6 +8,7 @@ members = [
   "crates/formats/datafusion-shared",
   "crates/geoetl-cli",
   "crates/geoetl-core",
+  "crates/geoetl-core-common",
   "crates/geoetl-operations",
 ]
 resolver = "3"

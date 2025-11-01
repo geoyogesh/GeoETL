@@ -947,6 +947,7 @@ dependencies = [
 name = "datafusion-csv"
 version = "0.1.1"
 dependencies = [
+ "anyhow",
  "arrow",
  "arrow-array",
  "arrow-cast",
@@ -965,6 +966,7 @@ dependencies = [
  "geo-traits",
  "geoarrow-array",
  "geoarrow-schema",
+ "geoetl-core-common",
  "object_store",
  "tempfile",
  "tokio",
@@ -1290,6 +1292,7 @@ dependencies = [
 name = "datafusion-geojson"
 version = "0.1.1"
 dependencies = [
+ "anyhow",
  "arrow-array",
  "arrow-schema",
  "async-trait",
@@ -1304,6 +1307,7 @@ dependencies = [
  "geo-types",
  "geoarrow-array",
  "geoarrow-schema",
+ "geoetl-core-common",
  "geojson",
  "geozero",
  "object_store",
@@ -1815,9 +1819,20 @@ dependencies = [
  "datafusion-geojson",
  "geoarrow-array",
  "geoarrow-schema",
+ "geoetl-core-common",
  "log",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "geoetl-core-common"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "arrow-schema",
+ "async-trait",
+ "datafusion",
 ]
 
 [[package]]

@@ -28,6 +28,8 @@ object_store = { workspace = true, features = ["aws", "azure", "gcp", "http"] }
 serde_json = "1.0"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 url = { workspace = true }
+geoetl-core-common = { path = "../../geoetl-core-common" }
+anyhow = { workspace = true }
 
 [dev-dependencies]
 geo-traits = { workspace = true }

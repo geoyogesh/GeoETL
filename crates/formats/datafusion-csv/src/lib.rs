@@ -32,6 +32,7 @@
 //! }
 //! ```
 
+pub mod factory;
 mod file_format;
 mod file_source;
 pub mod geospatial;
@@ -41,6 +42,7 @@ mod sink;
 mod writer;
 
 // Re-export public types
+pub use factory::register_csv_format;
 pub use file_format::CsvFormatOptions;
 pub use file_source::CsvSourceBuilder;
 pub use object_store_reader::CsvFileMetadata;

@@ -135,6 +135,9 @@ enum Commands {
 /// Returns an error if command execution fails or if the logging system cannot be initialized.
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize geoetl-core (registers all format drivers)
+    geoetl_core::init::initialize();
+
     let cli = Cli::parse();
 
     // Setup logging based on verbosity flags
