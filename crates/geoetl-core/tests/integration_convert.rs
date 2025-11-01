@@ -226,7 +226,7 @@ async fn test_e2e_driver_validation() {
         output_path.to_str().unwrap(),
         &input_driver,
         &output_driver,
-        "geometry",
+        "wkt",
         None,
     )
     .await;
@@ -236,7 +236,7 @@ async fn test_e2e_driver_validation() {
         result
             .unwrap_err()
             .to_string()
-            .contains("does not support writing")
+            .contains("is not yet implemented for conversion")
     );
 }
 

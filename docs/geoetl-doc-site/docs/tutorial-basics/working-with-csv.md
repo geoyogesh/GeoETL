@@ -73,10 +73,19 @@ geoetl-cli convert \
   -i cities.csv \
   -o cities.geojson \
   --input-driver CSV \
-  --output-driver GeoJSON
+  --output-driver GeoJSON \
+  --geometry-column geometry
 ```
 
-By default, GeoETL looks for a column named "geometry".
+:::danger IMPORTANT
+The `--geometry-column` parameter is **REQUIRED** for all CSV operations in GeoETL.
+
+Unlike GeoJSON (which has a standard geometry structure), CSV files can have any column name for geometries. You must explicitly tell GeoETL which column contains your WKT geometries.
+
+**If you forget this parameter, you'll get a clear error message with an example.**
+:::
+
+By default, most CSV files use "geometry" as the column name, but you must explicitly specify it.
 
 ### Custom Geometry Column
 
@@ -169,7 +178,8 @@ awk -F',' 'NR==1{print $0",geometry"; next} {print $0",\"POINT("$3" "$2")\""}' i
 Then convert:
 ```bash
 geoetl-cli convert -i output.csv -o data.geojson \
-  --input-driver CSV --output-driver GeoJSON
+  --input-driver CSV --output-driver GeoJSON \
+  --geometry-column geometry
 ```
 
 ### Pattern 2: Round-trip Conversion
@@ -181,9 +191,10 @@ Convert GeoJSON → CSV → GeoJSON to verify data integrity:
 geoetl-cli convert -i original.geojson -o temp.csv \
   --input-driver GeoJSON --output-driver CSV
 
-# CSV back to GeoJSON
+# CSV back to GeoJSON (geometry-column required for CSV input)
 geoetl-cli convert -i temp.csv -o recovered.geojson \
-  --input-driver CSV --output-driver GeoJSON
+  --input-driver CSV --output-driver GeoJSON \
+  --geometry-column geometry
 
 # Compare files
 diff original.geojson recovered.geojson
@@ -206,9 +217,10 @@ geoetl-cli convert -i data.geojson -o data.csv \
 
 # Steps 2-4: Edit in spreadsheet
 
-# Step 5: CSV back to GeoJSON
+# Step 5: CSV back to GeoJSON (geometry-column required)
 geoetl-cli convert -i data.csv -o data_updated.geojson \
-  --input-driver CSV --output-driver GeoJSON
+  --input-driver CSV --output-driver GeoJSON \
+  --geometry-column geometry
 ```
 
 ## CSV Best Practices
@@ -357,9 +369,10 @@ head -1 file1.csv > combined.csv
 tail -n +2 file1.csv >> combined.csv
 tail -n +2 file2.csv >> combined.csv
 
-# Convert combined file
+# Convert combined file (geometry-column required)
 geoetl-cli convert -i combined.csv -o combined.geojson \
-  --input-driver CSV --output-driver GeoJSON
+  --input-driver CSV --output-driver GeoJSON \
+  --geometry-column geometry
 ```
 
 ### Large CSV Files
@@ -370,9 +383,10 @@ For large files (100MB+):
 # Check file size first
 ls -lh large_data.csv
 
-# Use verbose mode to monitor progress
+# Use verbose mode to monitor progress (geometry-column required)
 geoetl-cli -v convert -i large_data.csv -o large_data.geojson \
-  --input-driver CSV --output-driver GeoJSON
+  --input-driver CSV --output-driver GeoJSON \
+  --geometry-column geometry
 ```
 
 ## Real-World Examples
@@ -404,36 +418,39 @@ geoetl-cli convert -i db_export.csv -o cities.geojson \
 ```bash
 # 1. Collect data with WKT geometry strings
 # 2. Save as CSV
-# 3. Convert for web mapping
+# 3. Convert for web mapping (geometry-column required)
 geoetl-cli convert -i collected_data.csv -o map_data.geojson \
-  --input-driver CSV --output-driver GeoJSON
+  --input-driver CSV --output-driver GeoJSON \
+  --geometry-column geometry
 ```
 
 ## Quick Reference
 
 ```bash
-# Basic CSV to GeoJSON
+# Basic CSV to GeoJSON (--geometry-column REQUIRED for CSV)
 geoetl-cli convert -i data.csv -o data.geojson \
-  --input-driver CSV --output-driver GeoJSON
+  --input-driver CSV --output-driver GeoJSON \
+  --geometry-column geometry
 
-# Custom geometry column
+# Custom geometry column name
 geoetl-cli convert -i data.csv -o data.geojson \
   --input-driver CSV --output-driver GeoJSON \
   --geometry-column wkt
 
-# Specify geometry type
+# Specify geometry type for optimization
 geoetl-cli convert -i data.csv -o data.geojson \
   --input-driver CSV --output-driver GeoJSON \
   --geometry-column wkt \
   --geometry-type Point
 
-# GeoJSON to CSV
+# GeoJSON to CSV (no geometry-column needed for GeoJSON input)
 geoetl-cli convert -i data.geojson -o data.csv \
   --input-driver GeoJSON --output-driver CSV
 
 # Verbose output
 geoetl-cli -v convert -i data.csv -o data.geojson \
-  --input-driver CSV --output-driver GeoJSON
+  --input-driver CSV --output-driver GeoJSON \
+  --geometry-column geometry
 ```
 
 ## Key Takeaways

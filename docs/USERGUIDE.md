@@ -12,6 +12,7 @@
 - [Driver System](#driver-system)
 - [Common Workflows](#common-workflows)
 - [Logging and Debugging](#logging-and-debugging)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -22,7 +23,7 @@ GeoETL is a modern, high-performance CLI tool for spatial data conversion and pr
 ### Key Features
 
 - **Fast**: Built with Rust for maximum performance
-- **Compatible**: Support for 68+ vector formats (2 currently implemented: GeoJSON, Parquet)
+- **Compatible**: Support for 68+ vector formats (2 currently implemented: CSV, GeoJSON)
 - **Modern**: Designed to leverage Apache DataFusion for analytics
 - **Intuitive**: Clean, user-friendly command-line interface
 - **Extensible**: Designed for single-node to distributed processing
