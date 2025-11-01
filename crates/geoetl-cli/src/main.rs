@@ -403,6 +403,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_convert_invalid_input_driver() {
+        geoetl_core::init::initialize();
+
         let input_driver_name = "NonExistentDriver";
         let output_driver_name = "GeoJSON";
 
@@ -426,7 +428,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_convert_input_driver_no_read_support() {
-        let input_driver_name = "GML"; // GML does not support read
+        geoetl_core::init::initialize();
+
+        // With the dynamic registry, unimplemented drivers are not registered at all
+        // so they return NotFound instead of OperationNotSupported
+        let input_driver_name = "GML"; // GML is not implemented
         let output_driver_name = "GeoJSON";
 
         let result = handle_convert(
@@ -440,15 +446,17 @@ mod tests {
         .await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        // Check that it's a DriverError::OperationNotSupported
+        // Check that it's a DriverError::NotFound (not in registry)
         assert!(matches!(
             err,
-            GeoEtlError::Driver(error::DriverError::OperationNotSupported { .. })
+            GeoEtlError::Driver(error::DriverError::NotFound { .. })
         ));
     }
 
     #[tokio::test]
     async fn test_handle_convert_invalid_output_driver() {
+        geoetl_core::init::initialize();
+
         let input_driver_name = "CSV";
         let output_driver_name = "NonExistentDriver";
 
@@ -472,8 +480,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_convert_output_driver_no_write_support() {
+        geoetl_core::init::initialize();
+
+        // With the dynamic registry, unimplemented drivers are not registered at all
+        // so they return NotFound instead of OperationNotSupported
         let input_driver_name = "CSV";
-        let output_driver_name = "GML"; // GML does not support write
+        let output_driver_name = "GML"; // GML is not implemented
 
         let result = handle_convert(
             "input.csv",
@@ -486,10 +498,10 @@ mod tests {
         .await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        // Check that it's a DriverError::OperationNotSupported
+        // Check that it's a DriverError::NotFound (not in registry)
         assert!(matches!(
             err,
-            GeoEtlError::Driver(error::DriverError::OperationNotSupported { .. })
+            GeoEtlError::Driver(error::DriverError::NotFound { .. })
         ));
     }
 }

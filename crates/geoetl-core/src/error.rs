@@ -448,3 +448,427 @@ pub fn driver_not_found(name: &str) -> DriverError {
         available,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_driver_not_found_error() {
+        let error = driver_not_found("unknown");
+        assert!(error.to_string().contains("unknown"));
+        assert!(error.to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_driver_not_found_user_message() {
+        let error = GeoEtlError::Driver(driver_not_found("csv2"));
+        let message = error.user_message();
+        assert!(message.contains("csv2"));
+        assert!(message.contains("not found"));
+    }
+
+    #[test]
+    fn test_driver_not_found_recovery() {
+        let error = GeoEtlError::Driver(driver_not_found("unknown"));
+        let suggestion = error.recovery_suggestion();
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("geoetl drivers"));
+    }
+
+    #[test]
+    fn test_driver_operation_not_supported() {
+        let error = DriverError::OperationNotSupported {
+            driver: "flatgeobuf".to_string(),
+            operation: "writing".to_string(),
+        };
+        assert!(error.to_string().contains("flatgeobuf"));
+        assert!(error.to_string().contains("writing"));
+    }
+
+    #[test]
+    fn test_driver_operation_not_supported_user_message() {
+        let error = GeoEtlError::Driver(DriverError::OperationNotSupported {
+            driver: "test".to_string(),
+            operation: "reading".to_string(),
+        });
+        let message = error.user_message();
+        assert!(message.contains("test"));
+        assert!(message.contains("reading"));
+    }
+
+    #[test]
+    fn test_driver_operation_not_supported_recovery() {
+        let error = GeoEtlError::Driver(DriverError::OperationNotSupported {
+            driver: "test".to_string(),
+            operation: "reading".to_string(),
+        });
+        let suggestion = error.recovery_suggestion();
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("different driver"));
+    }
+
+    #[test]
+    fn test_driver_invalid_configuration() {
+        let error = DriverError::InvalidConfiguration {
+            message: "missing required option".to_string(),
+        };
+        assert!(error.to_string().contains("Invalid driver configuration"));
+    }
+
+    #[test]
+    fn test_driver_not_registered() {
+        let error = DriverError::NotRegistered {
+            driver: "custom".to_string(),
+        };
+        assert!(error.to_string().contains("custom"));
+        assert!(error.to_string().contains("not registered"));
+    }
+
+    #[test]
+    fn test_driver_not_registered_recovery() {
+        let error = GeoEtlError::Driver(DriverError::NotRegistered {
+            driver: "custom".to_string(),
+        });
+        let suggestion = error.recovery_suggestion();
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("not be enabled"));
+    }
+
+    #[test]
+    fn test_io_error_read() {
+        let error = IoError::Read {
+            format: "CSV".to_string(),
+            path: PathBuf::from("/tmp/test.csv"),
+            source: Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "not found",
+            )),
+        };
+        assert!(error.to_string().contains("CSV"));
+        assert!(error.to_string().contains("/tmp/test.csv"));
+    }
+
+    #[test]
+    fn test_io_error_read_user_message() {
+        let error = GeoEtlError::Io(IoError::Read {
+            format: "CSV".to_string(),
+            path: PathBuf::from("/tmp/test.csv"),
+            source: Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "not found",
+            )),
+        });
+        let message = error.user_message();
+        assert!(message.contains("CSV"));
+        assert!(message.contains("/tmp/test.csv"));
+    }
+
+    #[test]
+    fn test_io_error_write() {
+        let error = IoError::Write {
+            format: "GeoJSON".to_string(),
+            path: PathBuf::from("/tmp/output.geojson"),
+            source: Box::new(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "permission denied",
+            )),
+        };
+        assert!(error.to_string().contains("GeoJSON"));
+        assert!(error.to_string().contains("/tmp/output.geojson"));
+    }
+
+    #[test]
+    fn test_io_error_write_user_message() {
+        let error = GeoEtlError::Io(IoError::Write {
+            format: "GeoJSON".to_string(),
+            path: PathBuf::from("/tmp/output.geojson"),
+            source: Box::new(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "permission denied",
+            )),
+        });
+        let message = error.user_message();
+        assert!(message.contains("GeoJSON"));
+        assert!(message.contains("/tmp/output.geojson"));
+    }
+
+    #[test]
+    fn test_io_error_file_not_found() {
+        let error = IoError::FileNotFound {
+            path: PathBuf::from("/missing/file.csv"),
+        };
+        assert!(error.to_string().contains("/missing/file.csv"));
+    }
+
+    #[test]
+    fn test_io_error_file_not_found_recovery() {
+        let error = GeoEtlError::Io(IoError::FileNotFound {
+            path: PathBuf::from("/missing/file.csv"),
+        });
+        let suggestion = error.recovery_suggestion();
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("file path is correct"));
+    }
+
+    #[test]
+    fn test_io_error_permission_denied() {
+        let error = IoError::PermissionDenied {
+            path: PathBuf::from("/restricted/file.csv"),
+        };
+        assert!(error.to_string().contains("/restricted/file.csv"));
+    }
+
+    #[test]
+    fn test_io_error_permission_denied_recovery() {
+        let error = GeoEtlError::Io(IoError::PermissionDenied {
+            path: PathBuf::from("/restricted/file.csv"),
+        });
+        let suggestion = error.recovery_suggestion();
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("permissions"));
+    }
+
+    #[test]
+    fn test_io_error_invalid_path() {
+        let error = IoError::InvalidPath {
+            path: PathBuf::from("invalid:::path"),
+            reason: "invalid characters".to_string(),
+        };
+        assert!(error.to_string().contains("invalid:::path"));
+        assert!(error.to_string().contains("invalid characters"));
+    }
+
+    #[test]
+    fn test_io_error_invalid_path_recovery() {
+        let error = GeoEtlError::Io(IoError::InvalidPath {
+            path: PathBuf::from("invalid:::path"),
+            reason: "test".to_string(),
+        });
+        let suggestion = error.recovery_suggestion();
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("valid"));
+    }
+
+    #[test]
+    fn test_format_error_parse() {
+        let error = FormatError::Parse {
+            format: "GeoJSON".to_string(),
+            line: Some(10),
+            message: "unexpected token".to_string(),
+        };
+        assert!(error.to_string().contains("GeoJSON"));
+        assert!(error.to_string().contains("10"));
+        assert!(error.to_string().contains("unexpected token"));
+    }
+
+    #[test]
+    fn test_format_error_parse_no_line() {
+        let error = FormatError::Parse {
+            format: "CSV".to_string(),
+            line: None,
+            message: "invalid format".to_string(),
+        };
+        assert!(error.to_string().contains("CSV"));
+        assert!(error.to_string().contains("invalid format"));
+    }
+
+    #[test]
+    fn test_format_error_parse_user_message() {
+        let error = GeoEtlError::Format(FormatError::Parse {
+            format: "CSV".to_string(),
+            line: Some(5),
+            message: "test".to_string(),
+        });
+        let message = error.user_message();
+        assert!(message.contains("CSV"));
+        assert!(message.contains('5'));
+    }
+
+    #[test]
+    fn test_format_error_parse_recovery() {
+        let error = GeoEtlError::Format(FormatError::Parse {
+            format: "CSV".to_string(),
+            line: Some(5),
+            message: "test".to_string(),
+        });
+        let suggestion = error.recovery_suggestion();
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("file format"));
+    }
+
+    #[test]
+    fn test_format_error_schema_inference() {
+        let error = FormatError::SchemaInference {
+            format: "CSV".to_string(),
+            reason: "inconsistent types".to_string(),
+        };
+        assert!(error.to_string().contains("CSV"));
+        assert!(error.to_string().contains("inconsistent types"));
+    }
+
+    #[test]
+    fn test_format_error_schema_inference_recovery() {
+        let error = GeoEtlError::Format(FormatError::SchemaInference {
+            format: "CSV".to_string(),
+            reason: "test".to_string(),
+        });
+        let suggestion = error.recovery_suggestion();
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("schema manually"));
+    }
+
+    #[test]
+    fn test_format_error_invalid_geometry() {
+        let error = FormatError::InvalidGeometry {
+            format: "GeoJSON".to_string(),
+            message: "invalid WKT".to_string(),
+            feature_id: Some("feature-123".to_string()),
+        };
+        assert!(error.to_string().contains("GeoJSON"));
+        assert!(error.to_string().contains("invalid WKT"));
+        assert!(error.to_string().contains("feature-123"));
+    }
+
+    #[test]
+    fn test_format_error_invalid_geometry_no_id() {
+        let error = FormatError::InvalidGeometry {
+            format: "GeoJSON".to_string(),
+            message: "invalid WKT".to_string(),
+            feature_id: None,
+        };
+        assert!(error.to_string().contains("GeoJSON"));
+        assert!(error.to_string().contains("invalid WKT"));
+    }
+
+    #[test]
+    fn test_format_error_invalid_geometry_user_message() {
+        let error = GeoEtlError::Format(FormatError::InvalidGeometry {
+            format: "WKT".to_string(),
+            message: "test".to_string(),
+            feature_id: Some("123".to_string()),
+        });
+        let message = error.user_message();
+        assert!(message.contains("WKT"));
+        assert!(message.contains("123"));
+    }
+
+    #[test]
+    fn test_format_error_invalid_geometry_recovery() {
+        let error = GeoEtlError::Format(FormatError::InvalidGeometry {
+            format: "WKT".to_string(),
+            message: "test".to_string(),
+            feature_id: None,
+        });
+        let suggestion = error.recovery_suggestion();
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("GIS tool"));
+    }
+
+    #[test]
+    fn test_format_error_unsupported_geometry_type() {
+        let error = FormatError::UnsupportedGeometryType {
+            geometry_type: "Unknown".to_string(),
+        };
+        assert!(error.to_string().contains("Unknown"));
+    }
+
+    #[test]
+    fn test_format_error_type_mismatch() {
+        let error = FormatError::TypeMismatch {
+            field: "age".to_string(),
+            expected: "Integer".to_string(),
+            found: "String".to_string(),
+        };
+        assert!(error.to_string().contains("age"));
+        assert!(error.to_string().contains("Integer"));
+        assert!(error.to_string().contains("String"));
+    }
+
+    #[test]
+    fn test_config_error_invalid_option() {
+        let error = ConfigError::InvalidOption {
+            option: "delimiter".to_string(),
+            message: "must be single byte".to_string(),
+        };
+        assert!(error.to_string().contains("delimiter"));
+        assert!(error.to_string().contains("must be single byte"));
+    }
+
+    #[test]
+    fn test_config_error_missing_required() {
+        let error = ConfigError::MissingRequired {
+            option: "input_file".to_string(),
+        };
+        assert!(error.to_string().contains("input_file"));
+    }
+
+    #[test]
+    fn test_config_error_conflicting_options() {
+        let error = ConfigError::ConflictingOptions {
+            options: "format and delimiter".to_string(),
+        };
+        assert!(error.to_string().contains("format and delimiter"));
+    }
+
+    #[test]
+    fn test_error_is_recoverable() {
+        let config_error = GeoEtlError::Config(ConfigError::InvalidOption {
+            option: "test".to_string(),
+            message: "test".to_string(),
+        });
+        assert!(config_error.is_recoverable());
+
+        let driver_error = GeoEtlError::Driver(DriverError::InvalidConfiguration {
+            message: "test".to_string(),
+        });
+        assert!(driver_error.is_recoverable());
+
+        let io_error = GeoEtlError::Io(IoError::FileNotFound {
+            path: PathBuf::from("/test"),
+        });
+        assert!(!io_error.is_recoverable());
+    }
+
+    #[test]
+    fn test_io_error_ext_read_context() {
+        let result: std::io::Result<()> = Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "not found",
+        ));
+        let error = result.with_read_context("CSV", "/test.csv");
+        assert!(error.is_err());
+        let err_msg = error.unwrap_err().to_string();
+        assert!(err_msg.contains("CSV"));
+        assert!(err_msg.contains("/test.csv"));
+    }
+
+    #[test]
+    fn test_io_error_ext_write_context() {
+        let result: std::io::Result<()> = Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "permission denied",
+        ));
+        let error = result.with_write_context("GeoJSON", "/output.geojson");
+        assert!(error.is_err());
+        let err_msg = error.unwrap_err().to_string();
+        assert!(err_msg.contains("GeoJSON"));
+        assert!(err_msg.contains("/output.geojson"));
+    }
+
+    #[test]
+    fn test_datafusion_error() {
+        let df_error = datafusion::error::DataFusionError::Plan("test error".to_string());
+        let error = GeoEtlError::DataFusion(DataFusionError::Query(df_error));
+        assert!(error.user_message().contains("Query error"));
+    }
+
+    #[test]
+    fn test_other_error() {
+        let other_error = anyhow::anyhow!("generic error");
+        let error = GeoEtlError::Other(other_error);
+        assert!(error.user_message().contains("generic error"));
+        assert!(error.recovery_suggestion().is_none());
+    }
+}

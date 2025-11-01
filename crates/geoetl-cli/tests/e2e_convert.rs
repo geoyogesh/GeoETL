@@ -154,6 +154,7 @@ fn test_cli_convert_unsupported_read() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("output.csv");
 
+    // With the dynamic registry, unimplemented drivers are not found at all
     geoetl_cmd()
         .arg("convert")
         .arg("--input")
@@ -166,7 +167,7 @@ fn test_cli_convert_unsupported_read() {
         .arg("CSV")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("does not support reading"));
+        .stderr(predicate::str::contains("Driver 'GML' not found"));
 }
 
 #[test]
@@ -174,6 +175,7 @@ fn test_cli_convert_unsupported_write() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("output.gml");
 
+    // With the dynamic registry, unimplemented drivers are not found at all
     geoetl_cmd()
         .arg("convert")
         .arg("--input")
@@ -186,7 +188,7 @@ fn test_cli_convert_unsupported_write() {
         .arg("GML")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("does not support writing"));
+        .stderr(predicate::str::contains("Driver 'GML' not found"));
 }
 
 #[test]

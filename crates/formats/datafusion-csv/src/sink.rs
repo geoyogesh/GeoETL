@@ -230,4 +230,243 @@ mod tests {
         assert_eq!(sink.schema().fields().len(), 2);
         assert_eq!(sink.writer_options().delimiter, b',');
     }
+
+    #[test]
+    fn test_csv_sink_as_any() {
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let config = FileSinkConfig {
+            original_url: "file:///tmp/output.csv".to_string(),
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_group: FileGroup::default(),
+            table_paths: vec![ListingTableUrl::parse("file:///tmp").unwrap()],
+            output_schema: schema.clone(),
+            table_partition_cols: vec![],
+            insert_op: InsertOp::Append,
+            keep_partition_by_columns: false,
+            file_extension: "csv".to_string(),
+        };
+
+        let sink = CsvSink::new(config, CsvWriterOptions::default());
+        assert!(sink.as_any().is::<CsvSink>());
+    }
+
+    #[test]
+    fn test_csv_sink_metrics() {
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let config = FileSinkConfig {
+            original_url: "file:///tmp/output.csv".to_string(),
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_group: FileGroup::default(),
+            table_paths: vec![ListingTableUrl::parse("file:///tmp").unwrap()],
+            output_schema: schema.clone(),
+            table_partition_cols: vec![],
+            insert_op: InsertOp::Append,
+            keep_partition_by_columns: false,
+            file_extension: "csv".to_string(),
+        };
+
+        let sink = CsvSink::new(config, CsvWriterOptions::default());
+        assert!(sink.metrics().is_none());
+    }
+
+    #[test]
+    fn test_csv_sink_display() {
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let config = FileSinkConfig {
+            original_url: "file:///tmp/output.csv".to_string(),
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_group: FileGroup::default(),
+            table_paths: vec![ListingTableUrl::parse("file:///tmp").unwrap()],
+            output_schema: schema.clone(),
+            table_partition_cols: vec![],
+            insert_op: InsertOp::Append,
+            keep_partition_by_columns: false,
+            file_extension: "csv".to_string(),
+        };
+
+        let sink = CsvSink::new(config, CsvWriterOptions::default());
+        assert_eq!(format!("{sink:?}"), format!("{sink:?}"));
+    }
+
+    #[test]
+    fn test_csv_writer_exec_creation() {
+        use datafusion::physical_plan::empty::EmptyExec;
+
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let config = FileSinkConfig {
+            original_url: "file:///tmp/output.csv".to_string(),
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_group: FileGroup::default(),
+            table_paths: vec![ListingTableUrl::parse("file:///tmp").unwrap()],
+            output_schema: schema.clone(),
+            table_partition_cols: vec![],
+            insert_op: InsertOp::Append,
+            keep_partition_by_columns: false,
+            file_extension: "csv".to_string(),
+        };
+
+        let sink = Arc::new(CsvSink::new(config, CsvWriterOptions::default()));
+        let input = Arc::new(EmptyExec::new(schema.clone())) as Arc<dyn ExecutionPlan>;
+        let exec = CsvWriterExec::new(input, sink, None);
+
+        assert_eq!(exec.name(), "CsvWriterExec");
+    }
+
+    #[test]
+    fn test_csv_writer_exec_as_any() {
+        use datafusion::physical_plan::empty::EmptyExec;
+
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let config = FileSinkConfig {
+            original_url: "file:///tmp/output.csv".to_string(),
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_group: FileGroup::default(),
+            table_paths: vec![ListingTableUrl::parse("file:///tmp").unwrap()],
+            output_schema: schema.clone(),
+            table_partition_cols: vec![],
+            insert_op: InsertOp::Append,
+            keep_partition_by_columns: false,
+            file_extension: "csv".to_string(),
+        };
+
+        let sink = Arc::new(CsvSink::new(config, CsvWriterOptions::default()));
+        let input = Arc::new(EmptyExec::new(schema.clone())) as Arc<dyn ExecutionPlan>;
+        let exec = CsvWriterExec::new(input, sink, None);
+
+        assert!(exec.as_any().is::<CsvWriterExec>());
+    }
+
+    #[test]
+    fn test_csv_writer_exec_children() {
+        use datafusion::physical_plan::empty::EmptyExec;
+
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let config = FileSinkConfig {
+            original_url: "file:///tmp/output.csv".to_string(),
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_group: FileGroup::default(),
+            table_paths: vec![ListingTableUrl::parse("file:///tmp").unwrap()],
+            output_schema: schema.clone(),
+            table_partition_cols: vec![],
+            insert_op: InsertOp::Append,
+            keep_partition_by_columns: false,
+            file_extension: "csv".to_string(),
+        };
+
+        let sink = Arc::new(CsvSink::new(config, CsvWriterOptions::default()));
+        let input = Arc::new(EmptyExec::new(schema.clone())) as Arc<dyn ExecutionPlan>;
+        let exec = CsvWriterExec::new(input, sink, None);
+
+        let children = exec.children();
+        assert_eq!(children.len(), 1);
+    }
+
+    #[test]
+    fn test_csv_writer_exec_with_new_children() {
+        use datafusion::physical_plan::empty::EmptyExec;
+
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let config = FileSinkConfig {
+            original_url: "file:///tmp/output.csv".to_string(),
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_group: FileGroup::default(),
+            table_paths: vec![ListingTableUrl::parse("file:///tmp").unwrap()],
+            output_schema: schema.clone(),
+            table_partition_cols: vec![],
+            insert_op: InsertOp::Append,
+            keep_partition_by_columns: false,
+            file_extension: "csv".to_string(),
+        };
+
+        let sink = Arc::new(CsvSink::new(config, CsvWriterOptions::default()));
+        let input = Arc::new(EmptyExec::new(schema.clone())) as Arc<dyn ExecutionPlan>;
+        let exec = Arc::new(CsvWriterExec::new(input.clone(), sink, None));
+
+        // Test with one child
+        let new_exec = exec.clone().with_new_children(vec![input.clone()]).unwrap();
+        assert_eq!(new_exec.children().len(), 1);
+    }
+
+    #[test]
+    fn test_csv_writer_exec_with_new_children_error() {
+        use datafusion::physical_plan::empty::EmptyExec;
+
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let config = FileSinkConfig {
+            original_url: "file:///tmp/output.csv".to_string(),
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_group: FileGroup::default(),
+            table_paths: vec![ListingTableUrl::parse("file:///tmp").unwrap()],
+            output_schema: schema.clone(),
+            table_partition_cols: vec![],
+            insert_op: InsertOp::Append,
+            keep_partition_by_columns: false,
+            file_extension: "csv".to_string(),
+        };
+
+        let sink = Arc::new(CsvSink::new(config, CsvWriterOptions::default()));
+        let input = Arc::new(EmptyExec::new(schema.clone())) as Arc<dyn ExecutionPlan>;
+        let exec = Arc::new(CsvWriterExec::new(input.clone(), sink, None));
+
+        // Test with wrong number of children
+        let result = exec.clone().with_new_children(vec![]);
+        assert!(result.is_err());
+
+        let result = exec
+            .clone()
+            .with_new_children(vec![input.clone(), input.clone()]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_csv_writer_exec_execute_error() {
+        use datafusion::physical_plan::empty::EmptyExec;
+
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let config = FileSinkConfig {
+            original_url: "file:///tmp/output.csv".to_string(),
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_group: FileGroup::default(),
+            table_paths: vec![ListingTableUrl::parse("file:///tmp").unwrap()],
+            output_schema: schema.clone(),
+            table_partition_cols: vec![],
+            insert_op: InsertOp::Append,
+            keep_partition_by_columns: false,
+            file_extension: "csv".to_string(),
+        };
+
+        let sink = Arc::new(CsvSink::new(config, CsvWriterOptions::default()));
+        let input = Arc::new(EmptyExec::new(schema.clone())) as Arc<dyn ExecutionPlan>;
+        let exec = CsvWriterExec::new(input, sink, None);
+
+        let context = Arc::new(TaskContext::default());
+
+        // Test with invalid partition
+        let result = exec.execute(1, context);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_csv_writer_exec_display() {
+        use datafusion::physical_plan::empty::EmptyExec;
+
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let config = FileSinkConfig {
+            original_url: "file:///tmp/output.csv".to_string(),
+            object_store_url: ObjectStoreUrl::local_filesystem(),
+            file_group: FileGroup::default(),
+            table_paths: vec![ListingTableUrl::parse("file:///tmp").unwrap()],
+            output_schema: schema.clone(),
+            table_partition_cols: vec![],
+            insert_op: InsertOp::Append,
+            keep_partition_by_columns: false,
+            file_extension: "csv".to_string(),
+        };
+
+        let sink = Arc::new(CsvSink::new(config, CsvWriterOptions::default()));
+        let input = Arc::new(EmptyExec::new(schema.clone())) as Arc<dyn ExecutionPlan>;
+        let exec = CsvWriterExec::new(input, sink, None);
+
+        assert_eq!(format!("{exec}"), "CsvWriterExec");
+    }
 }

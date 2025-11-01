@@ -216,4 +216,227 @@ mod tests {
             "Parse error while reading s3://example/data.csv at line 5, column 7: unexpected delimiter"
         );
     }
+
+    #[test]
+    fn test_source_position_empty() {
+        let pos = SourcePosition::default();
+        assert!(pos.is_empty());
+
+        let pos = SourcePosition {
+            line: Some(1),
+            ..Default::default()
+        };
+        assert!(!pos.is_empty());
+    }
+
+    #[test]
+    fn test_source_position_display_all_fields() {
+        let pos = SourcePosition {
+            line: Some(10),
+            column: Some(3),
+            byte_offset: Some(100),
+            record: Some(5),
+            field: Some(2),
+        };
+
+        let display = pos.to_string();
+        assert!(display.contains("line 10"));
+        assert!(display.contains("column 3"));
+        assert!(display.contains("record 5"));
+        assert!(display.contains("byte 100"));
+        assert!(display.contains("field 2"));
+    }
+
+    #[test]
+    fn test_source_position_display_empty() {
+        let pos = SourcePosition::default();
+        assert_eq!(pos.to_string(), "unknown position");
+    }
+
+    #[test]
+    fn test_io_error_display() {
+        let error = SpatialFormatReadError::Io {
+            source: std::io::Error::new(std::io::ErrorKind::NotFound, "file not found"),
+            context: Some("test.csv".to_string()),
+        };
+
+        let display = error.to_string();
+        assert!(display.contains("I/O error"));
+        assert!(display.contains("while reading test.csv"));
+    }
+
+    #[test]
+    fn test_io_error_display_no_context() {
+        let error = SpatialFormatReadError::Io {
+            source: std::io::Error::new(std::io::ErrorKind::NotFound, "file not found"),
+            context: None,
+        };
+
+        let display = error.to_string();
+        assert!(display.contains("I/O error"));
+        assert!(!display.contains("while reading"));
+    }
+
+    #[test]
+    fn test_parse_error_display_no_position() {
+        let error = SpatialFormatReadError::Parse {
+            message: "invalid format".to_string(),
+            position: None,
+            context: Some("data.csv".to_string()),
+        };
+
+        let display = error.to_string();
+        assert!(display.contains("Parse error"));
+        assert!(display.contains("while reading data.csv"));
+        assert!(display.contains("invalid format"));
+    }
+
+    #[test]
+    fn test_parse_error_display_no_context() {
+        let error = SpatialFormatReadError::Parse {
+            message: "invalid format".to_string(),
+            position: Some(SourcePosition {
+                line: Some(5),
+                ..Default::default()
+            }),
+            context: None,
+        };
+
+        let display = error.to_string();
+        assert!(display.contains("Parse error"));
+        assert!(display.contains("at line 5"));
+        assert!(display.contains("invalid format"));
+    }
+
+    #[test]
+    fn test_schema_inference_error_display() {
+        let error = SpatialFormatReadError::SchemaInference {
+            message: "inconsistent types".to_string(),
+            context: Some("data.csv".to_string()),
+        };
+
+        let display = error.to_string();
+        assert!(display.contains("Schema inference error"));
+        assert!(display.contains("while reading data.csv"));
+        assert!(display.contains("inconsistent types"));
+    }
+
+    #[test]
+    fn test_schema_inference_error_display_no_context() {
+        let error = SpatialFormatReadError::SchemaInference {
+            message: "inconsistent types".to_string(),
+            context: None,
+        };
+
+        let display = error.to_string();
+        assert!(display.contains("Schema inference error"));
+        assert!(display.contains("inconsistent types"));
+    }
+
+    #[test]
+    fn test_other_error_display() {
+        let error = SpatialFormatReadError::Other {
+            message: "unknown error".to_string(),
+        };
+
+        assert_eq!(error.to_string(), "unknown error");
+    }
+
+    #[test]
+    fn test_error_source() {
+        let io_error = SpatialFormatReadError::Io {
+            source: std::io::Error::new(std::io::ErrorKind::NotFound, "file not found"),
+            context: None,
+        };
+        assert!(io_error.source().is_some());
+
+        let parse_error = SpatialFormatReadError::Parse {
+            message: "test".to_string(),
+            position: None,
+            context: None,
+        };
+        assert!(parse_error.source().is_none());
+
+        let schema_error = SpatialFormatReadError::SchemaInference {
+            message: "test".to_string(),
+            context: None,
+        };
+        assert!(schema_error.source().is_none());
+
+        let other_error = SpatialFormatReadError::Other {
+            message: "test".to_string(),
+        };
+        assert!(other_error.source().is_none());
+    }
+
+    #[test]
+    fn test_with_additional_context_io() {
+        let error = SpatialFormatReadError::Io {
+            source: std::io::Error::new(std::io::ErrorKind::NotFound, "file not found"),
+            context: Some("original".to_string()),
+        };
+
+        let error = error.with_additional_context("additional");
+        let display = error.to_string();
+        assert!(display.contains("original; additional"));
+    }
+
+    #[test]
+    fn test_with_additional_context_io_no_existing() {
+        let error = SpatialFormatReadError::Io {
+            source: std::io::Error::new(std::io::ErrorKind::NotFound, "file not found"),
+            context: None,
+        };
+
+        let error = error.with_additional_context("new context");
+        let display = error.to_string();
+        assert!(display.contains("while reading new context"));
+    }
+
+    #[test]
+    fn test_with_additional_context_parse() {
+        let error = SpatialFormatReadError::Parse {
+            message: "test".to_string(),
+            position: None,
+            context: Some("original".to_string()),
+        };
+
+        let error = error.with_additional_context("additional");
+        let display = error.to_string();
+        assert!(display.contains("original; additional"));
+    }
+
+    #[test]
+    fn test_with_additional_context_schema() {
+        let error = SpatialFormatReadError::SchemaInference {
+            message: "test".to_string(),
+            context: Some("original".to_string()),
+        };
+
+        let error = error.with_additional_context("additional");
+        let display = error.to_string();
+        assert!(display.contains("original; additional"));
+    }
+
+    #[test]
+    fn test_with_additional_context_other() {
+        let error = SpatialFormatReadError::Other {
+            message: "test".to_string(),
+        };
+
+        let error = error.with_additional_context("additional");
+        let display = error.to_string();
+        assert!(display.contains("test"));
+        assert!(display.contains("additional"));
+    }
+
+    #[test]
+    fn test_datafusion_error_conversion() {
+        let error = SpatialFormatReadError::Other {
+            message: "test".to_string(),
+        };
+
+        let df_error: DataFusionError = error.into();
+        assert!(matches!(df_error, DataFusionError::External(_)));
+    }
 }

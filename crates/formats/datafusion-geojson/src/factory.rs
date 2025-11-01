@@ -60,6 +60,36 @@ impl DataWriter for GeoJsonWriter {
             "GeoJSON writer not yet implemented in factory"
         ))
     }
+
+    fn create_writer_options(&self, geometry_column: &str) -> Box<dyn std::any::Any + Send> {
+        // GeoJSON writer options with configured geometry column
+        let options =
+            crate::writer::GeoJsonWriterOptions::default().with_geometry_column(geometry_column);
+        Box::new(options)
+    }
+
+    fn write_batches(
+        &self,
+        path: &str,
+        batches: &[datafusion::arrow::array::RecordBatch],
+        options: Box<dyn std::any::Any + Send>,
+    ) -> Result<()> {
+        use crate::writer::write_geojson;
+
+        // Downcast options to GeoJsonWriterOptions
+        let boxed_options = options
+            .downcast::<crate::writer::GeoJsonWriterOptions>()
+            .map_err(|_| anyhow::anyhow!("Invalid options type for GeoJSON writer"))?;
+        let writer_options = *boxed_options;
+
+        // Write to file
+        let mut output_file = std::fs::File::create(path)
+            .map_err(|e| anyhow::anyhow!("Failed to create output file: {e}"))?;
+
+        write_geojson(&mut output_file, batches, &writer_options)?;
+
+        Ok(())
+    }
 }
 
 /// Factory for creating `GeoJSON` readers and writers.

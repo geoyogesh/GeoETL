@@ -10,7 +10,6 @@ use crate::utils::ArrowDataTypeExt;
 use datafusion::arrow::array::RecordBatch;
 use datafusion::prelude::SessionContext;
 use log::info;
-use std::fs::File;
 
 // Type alias for backward compatibility during migration
 type Result<T> = std::result::Result<T, GeoEtlError>;
@@ -196,99 +195,63 @@ fn parse_geometry_type(geom_type_str: &str) -> Result<geoarrow_schema::GeoArrowT
     Ok(geoarrow_type)
 }
 
-/// Write data to CSV file
-fn write_csv(output: &str, batches: &[RecordBatch], geometry_column: &str) -> Result<()> {
-    use datafusion_csv::{CsvWriterOptions, write_csv};
-    info!("Writing CSV file: {output}");
-
-    // Convert geometry columns to WKT before writing
-    let converted_batches = convert_geometry_to_wkt(batches, geometry_column)?;
-
-    let mut output_file = File::create(output)
-        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to create output file: {e}")))?;
-    let options = CsvWriterOptions::default();
-    write_csv(&mut output_file, &converted_batches, &options)
-        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to write CSV file: {e}")))
-}
-
-/// Convert geometry columns to WKT format for CSV writing
-fn convert_geometry_to_wkt(
+/// Write data using the appropriate format writer (Strategy + Factory pattern).
+///
+/// This function uses the driver registry factory to dynamically dispatch to
+/// the appropriate writer implementation. The factory pattern provides the
+/// writer strategy, which then handles format-specific writing logic.
+///
+/// # Arguments
+///
+/// * `output` - Path to the output file
+/// * `batches` - Record batches to write
+/// * `driver` - The driver responsible for writing the format
+/// * `geometry_column` - Name of the geometry column
+///
+/// # Returns
+///
+/// A `Result` indicating success or an error if writing fails.
+fn write_with_driver(
+    output: &str,
     batches: &[RecordBatch],
+    driver: &Driver,
     geometry_column: &str,
-) -> Result<Vec<RecordBatch>> {
-    use arrow_schema::Schema;
-    use geoarrow_array::GeoArrowArray;
-    use geoarrow_array::array::from_arrow_array;
-    use geoarrow_array::cast::to_wkt;
-    use std::sync::Arc;
+) -> Result<()> {
+    info!("Writing {} file: {}", driver.short_name, output);
 
-    let mut converted_batches = Vec::with_capacity(batches.len());
-
-    for batch in batches {
-        let schema = batch.schema();
-
-        // Find the geometry column index
-        let geom_idx = schema
-            .fields()
-            .iter()
-            .position(|field| field.name() == geometry_column);
-
-        if let Some(idx) = geom_idx {
-            // Get the geometry column and its field
-            let geom_array = batch.column(idx);
-            let geom_field = schema.field(idx);
-
-            // Convert Arrow array to GeoArrowArray
-            let geoarrow_array =
-                from_arrow_array(geom_array.as_ref(), geom_field).map_err(|e| {
-                    GeoEtlError::from(anyhow::anyhow!("Failed to convert to GeoArrowArray: {e}"))
-                })?;
-
-            // Convert to WKT using geoarrow cast (using i32 offset)
-            let wkt_array: geoarrow_array::array::WktArray =
-                to_wkt(&geoarrow_array).map_err(|e| {
-                    GeoEtlError::from(anyhow::anyhow!("Failed to convert geometry to WKT: {e}"))
-                })?;
-
-            // Create new schema with WKT column
-            let mut new_fields = schema.fields().to_vec();
-            new_fields[idx] = Arc::new(arrow_schema::Field::new(
-                geometry_column,
-                arrow_schema::DataType::Utf8,
-                true,
-            ));
-            let new_schema = Arc::new(Schema::new(new_fields));
-
-            // Create new columns with WKT
-            let mut new_columns = batch.columns().to_vec();
-            new_columns[idx] = wkt_array.to_array_ref();
-
-            // Create new batch
-            let new_batch = RecordBatch::try_new(new_schema, new_columns).map_err(|e| {
-                GeoEtlError::from(anyhow::anyhow!(
-                    "Failed to create record batch with WKT: {e}"
-                ))
+    // Factory pattern: Get the writer factory from the global registry
+    let registry = geoetl_core_common::driver_registry();
+    let factory =
+        registry
+            .find_factory(driver.short_name)
+            .ok_or_else(|| DriverError::NotRegistered {
+                driver: driver.short_name.to_string(),
             })?;
 
-            converted_batches.push(new_batch);
-        } else {
-            // No geometry column found, use batch as-is
-            converted_batches.push(batch.clone());
-        }
-    }
+    // Strategy pattern: Create writer strategy from factory
+    let writer = factory
+        .create_writer()
+        .ok_or_else(|| DriverError::OperationNotSupported {
+            driver: driver.short_name.to_string(),
+            operation: "writing".to_string(),
+        })?;
 
-    Ok(converted_batches)
-}
+    // Factory pattern: Let the writer create its own format-specific options
+    // This eliminates the need for a match statement!
+    let options = writer.create_writer_options(geometry_column);
 
-/// Write data to `GeoJSON` file
-fn write_geojson(output: &str, batches: &[RecordBatch]) -> Result<()> {
-    use datafusion_geojson::{GeoJsonWriterOptions, write_geojson};
-    info!("Writing GeoJSON file: {output}");
-    let mut output_file = File::create(output)
-        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to create output file: {e}")))?;
-    let options = GeoJsonWriterOptions::default();
-    write_geojson(&mut output_file, batches, &options)
-        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to write GeoJSON file: {e}")))
+    // Use polymorphic dispatch through the DataWriter trait - no switch statement needed!
+    writer
+        .write_batches(output, batches, options)
+        .map_err(|e| {
+            GeoEtlError::Io(error::IoError::Write {
+                format: driver.short_name.to_string(),
+                path: output.into(),
+                source: e.into(),
+            })
+        })?;
+
+    Ok(())
 }
 
 /// Performs a geospatial data conversion from an input format to an output format.
@@ -348,17 +311,9 @@ pub async fn convert(
     let total_rows: usize = batches.iter().map(RecordBatch::num_rows).sum();
     info!("Total rows: {total_rows}");
 
-    // Write data based on output driver
-    match output_driver.short_name {
-        "CSV" => write_csv(output, &batches, geometry_column).with_write_context("CSV", output)?,
-        "GeoJSON" => write_geojson(output, &batches).with_write_context("GeoJSON", output)?,
-        _ => {
-            return Err(DriverError::NotRegistered {
-                driver: output_driver.short_name.to_string(),
-            }
-            .into());
-        },
-    }
+    // Write data using factory + strategy pattern (no match statement needed!)
+    write_with_driver(output, &batches, output_driver, geometry_column)
+        .with_write_context(output_driver.short_name, output)?;
 
     info!("Conversion completed successfully");
     Ok(())
@@ -696,11 +651,24 @@ mod tests {
         .await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        // Check that it's a DriverError::NotRegistered for GML
-        assert!(matches!(
-            err,
-            GeoEtlError::Driver(DriverError::NotRegistered { .. })
-        ));
+        // After refactoring, unregistered drivers produce an IoError with NotRegistered as source
+        // This provides better context about what operation failed
+        match &err {
+            GeoEtlError::Io(error::IoError::Write { source, .. }) => {
+                // The source should be the original DriverError::NotRegistered
+                // We need to downcast to check the concrete error type
+                let source_err = source.downcast_ref::<GeoEtlError>();
+                assert!(source_err.is_some(), "Source should be a GeoEtlError");
+                assert!(
+                    matches!(
+                        source_err.unwrap(),
+                        GeoEtlError::Driver(DriverError::NotRegistered { .. })
+                    ),
+                    "Source should be DriverError::NotRegistered"
+                );
+            },
+            _ => panic!("Expected IoError::Write, got: {err:?}"),
+        }
         assert!(err.to_string().contains("GML"));
         Ok(())
     }
