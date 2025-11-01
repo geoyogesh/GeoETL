@@ -54,10 +54,46 @@ async fn initialize_context(
     Ok(ctx)
 }
 
+/// Prepare format-specific options for reading.
+///
+/// This helper function creates the appropriate options object for each format type,
+/// encapsulating format-specific configuration logic.
+///
+/// # Arguments
+///
+/// * `driver_name` - The short name of the driver (e.g., "`CSV`", "`GeoJSON`")
+/// * `geometry_column` - Name of the geometry column (used for CSV)
+/// * `geometry_type` - Optional geometry type hint (used for CSV)
+///
+/// # Returns
+///
+/// A boxed `Any` containing the format-specific options, or an error if the driver is unknown.
+fn prepare_reader_options(
+    driver_name: &str,
+    geometry_column: &str,
+    geometry_type: Option<&str>,
+) -> Result<Box<dyn std::any::Any + Send>> {
+    match driver_name {
+        "CSV" => {
+            use datafusion_csv::CsvFormatOptions;
+            let mut options = CsvFormatOptions::new();
+            let geoarrow_type = parse_geometry_type(geometry_type.unwrap_or("Geometry"))?;
+            options = options.with_geometry_from_wkt(geometry_column, geoarrow_type);
+            Ok(Box::new(options))
+        },
+        "GeoJSON" => {
+            use datafusion_geojson::GeoJsonFormatOptions;
+            Ok(Box::new(GeoJsonFormatOptions::default()))
+        },
+        _ => Err(anyhow!("Unknown driver '{driver_name}'")),
+    }
+}
+
 /// Register a dataset in the `DataFusion` catalog.
 ///
 /// This function handles the registration of different data formats (`CSV`, `GeoJSON`, etc.)
 /// into a `DataFusion` session context, making them available for SQL queries or conversion.
+/// Uses the factory pattern to dynamically dispatch to the appropriate format reader.
 ///
 /// # Arguments
 ///
@@ -79,35 +115,36 @@ async fn register_catalog(
     geometry_column: &str,
     geometry_type: Option<&str>,
 ) -> Result<()> {
-    match driver.short_name {
-        "CSV" => {
-            use datafusion_csv::{CsvFormatOptions, SessionContextCsvExt};
-            let mut csv_options = CsvFormatOptions::new();
-            let geoarrow_type = parse_geometry_type(geometry_type.unwrap_or("Geometry"))?;
-            csv_options = csv_options.with_geometry_from_wkt(geometry_column, geoarrow_type);
-            let df = ctx
-                .read_csv_with_options(input, csv_options)
-                .await
-                .map_err(|e| anyhow!("Failed to read CSV file: {e}"))?;
-            ctx.register_table(table_name, df.into_view())
-                .map_err(|e| anyhow!("Failed to register table: {e}"))?;
-        },
-        "GeoJSON" => {
-            use datafusion_geojson::SessionContextGeoJsonExt;
-            let df = ctx
-                .read_geojson_file(input)
-                .await
-                .map_err(|e| anyhow!("Failed to read GeoJSON file: {e}"))?;
-            ctx.register_table(table_name, df.into_view())
-                .map_err(|e| anyhow!("Failed to register table: {e}"))?;
-        },
-        _ => {
-            return Err(anyhow!(
-                "Input driver '{}' is not yet implemented",
-                driver.short_name
-            ));
-        },
-    }
+    // Get factory from global registry
+    let registry = geoetl_core_common::driver_registry();
+    let factory = registry
+        .find_factory(driver.short_name)
+        .ok_or_else(|| anyhow!("Driver '{}' not registered", driver.short_name))?;
+
+    // Create reader strategy
+    let reader = factory
+        .create_reader()
+        .ok_or_else(|| anyhow!("Driver '{}' does not support reading", driver.short_name))?;
+
+    // Prepare format-specific options
+    let options = prepare_reader_options(driver.short_name, geometry_column, geometry_type)?;
+
+    // Use polymorphic dispatch - no switch statement needed!
+    let table = reader
+        .create_table_provider(&ctx.state(), input, options)
+        .await
+        .map_err(|e| {
+            anyhow!(
+                "Failed to read {} file '{}': {}",
+                driver.short_name,
+                input,
+                e
+            )
+        })?;
+
+    ctx.register_table(table_name, table)
+        .map_err(|e| anyhow!("Failed to register table '{table_name}': {e}"))?;
+
     Ok(())
 }
 
@@ -470,6 +507,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_convert_csv_to_csv() -> Result<()> {
+        // Initialize format drivers
+        crate::init::initialize();
+
         let temp_dir = TempDir::new().unwrap();
         let input_path = temp_dir.path().join("input.csv");
         let output_path = temp_dir.path().join("output.csv");
@@ -517,6 +557,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_convert_geojson_to_geojson() -> Result<()> {
+        // Initialize format drivers
+        crate::init::initialize();
+
         let temp_dir = TempDir::new().unwrap();
         let input_path = temp_dir.path().join("input.geojson");
         let output_path = temp_dir.path().join("output.geojson");
@@ -563,6 +606,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_convert_unsupported_input_read() -> Result<()> {
+        // Initialize format drivers
+        crate::init::initialize();
+
         let input_driver = Driver::new(
             "GML",
             "Geography Markup Language",
@@ -588,17 +634,20 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        // After factory refactoring, unregistered drivers produce a "not registered" error
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("is not yet implemented")
+            error_msg.contains("not registered") || error_msg.contains("does not support reading"),
+            "Unexpected error message: {error_msg}"
         );
         Ok(())
     }
 
     #[tokio::test]
     async fn test_convert_unsupported_output_write() -> Result<()> {
+        // Initialize format drivers
+        crate::init::initialize();
+
         let input_driver = Driver::new(
             "CSV",
             "Comma Separated Value (.csv)",
@@ -635,6 +684,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_convert_invalid_csv() -> Result<()> {
+        // Initialize format drivers
+        crate::init::initialize();
+
         let temp_dir = TempDir::new().unwrap();
         let input_path = temp_dir.path().join("invalid.csv");
         let output_path = temp_dir.path().join("output.csv");
@@ -680,6 +732,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_convert_unimplemented_driver() -> Result<()> {
+        // Initialize format drivers
+        crate::init::initialize();
+
         let temp_dir = TempDir::new().unwrap();
         let input_path = temp_dir.path().join("input.shp");
         let output_path = temp_dir.path().join("output.shp");
@@ -710,17 +765,20 @@ mod tests {
         .await;
 
         assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        // After factory refactoring, unregistered drivers produce a "not registered" error
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("is not yet implemented")
+            error_msg.contains("not registered"),
+            "Unexpected error message: {error_msg}"
         );
         Ok(())
     }
 
     #[tokio::test]
     async fn test_convert_empty_csv() -> Result<()> {
+        // Initialize format drivers
+        crate::init::initialize();
+
         let temp_dir = TempDir::new().unwrap();
         let input_path = temp_dir.path().join("empty.csv");
         let output_path = temp_dir.path().join("output.csv");

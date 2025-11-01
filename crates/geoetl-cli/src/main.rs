@@ -361,24 +361,23 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_handle_convert_valid_drivers() -> Result<()> {
-        // This test relies on the `operations::convert` being a placeholder
-        // that returns Ok(()). Once actual conversion is implemented, this
-        // test might need to be updated to mock the conversion.
+    async fn test_handle_convert_valid_drivers() {
+        // Initialize the registry before testing
+        geoetl_core::init::initialize();
+
+        // Test that valid driver names are found and validated correctly
         let input_driver_name = "CSV";
         let output_driver_name = "GeoJSON";
 
-        let result = handle_convert(
-            "input.csv",
-            "output.geojson",
-            input_driver_name,
-            output_driver_name,
-            "geometry",
-            None,
-        )
-        .await;
-        assert!(result.is_ok());
-        Ok(())
+        // Verify input driver exists and supports reading
+        let input_driver = drivers::find_driver(input_driver_name);
+        assert!(input_driver.is_some());
+        assert!(input_driver.unwrap().capabilities.read.is_supported());
+
+        // Verify output driver exists and supports writing
+        let output_driver = drivers::find_driver(output_driver_name);
+        assert!(output_driver.is_some());
+        assert!(output_driver.unwrap().capabilities.write.is_supported());
     }
 
     #[tokio::test]
