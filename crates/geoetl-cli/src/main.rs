@@ -16,14 +16,18 @@
 //! - `info` - Display dataset information and metadata
 //! - `drivers` - List all available format drivers and their capabilities
 
+mod display;
+
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
-use tabled::{Table, Tabled};
-use tracing::{Level, debug, info, warn};
+use tabled::Table;
+use tracing::{Level, info};
 use tracing_log::LogTracer;
 use tracing_subscriber::FmtSubscriber;
 
 use geoetl_core::drivers::get_available_drivers;
+
+use display::{DriverRow, display_dataset_info};
 
 #[derive(Parser)]
 #[command(
@@ -91,20 +95,27 @@ enum Commands {
 
     /// Displays information about a vector geospatial dataset.
     ///
-    /// This command can show general information, detailed layer information,
+    /// This command shows general information, detailed layer information,
     /// and statistics for each field within the dataset.
     Info {
         /// Path to the input geospatial dataset.
         #[arg(value_name = "DATASET")]
         input: String,
 
-        /// Shows detailed information for each layer in the dataset.
-        #[arg(long)]
-        detailed: bool,
+        /// Input driver (e.g., `GeoJSON`, `CSV`, `Parquet`).
+        #[arg(short = 'f', long, value_name = "DRIVER")]
+        driver: String,
 
-        /// Shows statistics (e.g., min, max, mean) for each field.
-        #[arg(short, long)]
-        stats: bool,
+        /// Name of the geometry column in the input dataset.
+        /// For CSV files, this should be the column containing WKT geometry strings.
+        /// Required for CSV format, optional for other formats (defaults to "geometry").
+        #[arg(long, value_name = "COLUMN")]
+        geometry_column: Option<String>,
+
+        /// Geometry type for the input geometry column (e.g., "`Point`", "`LineString`", "`Polygon`").
+        /// Only used when reading CSV files with WKT geometries.
+        #[arg(long, value_name = "TYPE")]
+        geometry_type: Option<String>,
     },
 
     /// Lists all available geospatial drivers and their capabilities.
@@ -168,11 +179,18 @@ async fn main() -> Result<()> {
         },
         Commands::Info {
             input,
-            detailed,
-            stats,
+            driver,
+            geometry_column,
+            geometry_type,
         } => {
             info!("Displaying info for {input}");
-            handle_info(&input, detailed, stats)?;
+            handle_info(
+                &input,
+                &driver,
+                geometry_column.as_deref(),
+                geometry_type.as_deref(),
+            )
+            .await?;
         },
         Commands::Drivers => {
             handle_drivers()?;
@@ -235,37 +253,71 @@ async fn handle_convert(
     Ok(())
 }
 
-#[allow(clippy::unnecessary_wraps)] // Placeholder until command execution is implemented
-fn handle_info(input: &str, detailed: bool, stats: bool) -> Result<()> {
+async fn handle_info(
+    input: &str,
+    driver_name: &str,
+    geometry_column: Option<&str>,
+    geometry_type: Option<&str>,
+) -> Result<()> {
     info!("Info command:");
     info!("Input: {input}");
-    debug!("Detailed: {detailed}");
-    debug!("Stats: {stats}");
-    warn!("Not yet implemented - Phase 1 development");
-    Ok(())
-}
+    info!("Driver: {driver_name}");
 
-/// Table row representation for displaying driver information.
-///
-/// This struct is used to format driver metadata into a human-readable table
-/// using the [`tabled`] crate. Each field corresponds to a column in the output table.
-#[derive(Tabled)]
-struct DriverRow {
-    /// Short identifier for the driver (e.g., `GeoJSON`, `Parquet`).
-    #[tabled(rename = "Short Name")]
-    short_name: String,
-    /// Full descriptive name of the driver format.
-    #[tabled(rename = "Long Name")]
-    long_name: String,
-    /// Support status for reading dataset metadata and information.
-    #[tabled(rename = "Info")]
-    info: String,
-    /// Support status for reading data from this format.
-    #[tabled(rename = "Read")]
-    read: String,
-    /// Support status for writing data to this format.
-    #[tabled(rename = "Write")]
-    write: String,
+    // Resolve the input path to an absolute path
+    let input_path = std::path::Path::new(input);
+    let absolute_path = if input_path.is_absolute() {
+        input_path.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(input_path)
+    };
+
+    // Convert to string for use with operations
+    let resolved_input = absolute_path
+        .to_str()
+        .ok_or_else(|| anyhow!("Invalid path: could not convert path to string"))?;
+
+    // Verify file exists
+    if !absolute_path.exists() {
+        return Err(anyhow!(
+            "File not found: {input}\nResolved path: {resolved_input}"
+        ));
+    }
+
+    // Find the specified driver
+    let driver = drivers::find_driver(driver_name).ok_or_else(|| {
+        anyhow!(
+            "Driver '{driver_name}' not found. Use 'geoetl-cli drivers' to list available drivers."
+        )
+    })?;
+
+    // Validate driver supports info or read operations
+    if !driver.capabilities.info.is_supported() && !driver.capabilities.read.is_supported() {
+        return Err(anyhow!(
+            "Driver '{}' does not support info or read operations.",
+            driver.short_name
+        ));
+    }
+
+    // Validate geometry column is provided for CSV
+    let geometry_col = if driver.short_name == "CSV" {
+        geometry_column.ok_or_else(|| {
+            anyhow!(
+                "The --geometry-column argument is required for CSV files.\n\
+                 Example: geoetl-cli info {input} -f CSV --geometry-column wkt"
+            )
+        })?
+    } else {
+        geometry_column.unwrap_or("geometry")
+    };
+
+    // Get dataset information
+    let dataset_info =
+        operations::info(resolved_input, &driver, geometry_col, geometry_type).await?;
+
+    // Display dataset information using tables
+    display_dataset_info(&dataset_info);
+
+    Ok(())
 }
 
 /// Handles the `drivers` subcommand by displaying a formatted table of available drivers.
@@ -278,8 +330,7 @@ struct DriverRow {
 ///
 /// This function returns a `Result` for consistency with other command handlers,
 /// but does not currently perform any operations that fail, so it always returns `Ok(())`.
-#[allow(clippy::unnecessary_wraps)] // Placeholder until command execution is implemented
-#[allow(clippy::unnecessary_wraps)] // Placeholder until command execution is implemented
+#[allow(clippy::unnecessary_wraps)]
 fn handle_drivers() -> Result<()> {
     let drivers = get_available_drivers();
 

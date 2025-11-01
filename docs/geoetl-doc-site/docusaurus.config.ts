@@ -42,8 +42,8 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           // Edit this page links to GitHub
-          editUrl:
-            'https://github.com/geoyogesh/geoetl/tree/main/docs/geoetl-doc-site/',
+          editUrl: 'https://github.com/geoyogesh/geoetl/tree/main/docs/geoetl-doc-site/',
+          sidebarCollapsed: false,
         },
         blog: {
           showReadingTime: true,
@@ -62,6 +62,14 @@ const config: Config = {
         theme: {
           customCss: './src/css/custom.css',
         },
+        googleAnalytics: {
+          trackingID: 'G-SY20TD7F3D',
+          anonymizeIP: true,
+        },
+        gtag: {
+          trackingID: 'G-SY20TD7F3D',
+          anonymizeIP: true,
+        },
       } satisfies Preset.Options,
     ],
   ],
@@ -76,7 +84,7 @@ const config: Config = {
       title: 'GeoETL',
       logo: {
         alt: 'GeoETL Logo',
-        src: 'img/geoetl_logo1.png',
+        src: 'img/geoetl_logo2.png',
       },
       items: [
         {

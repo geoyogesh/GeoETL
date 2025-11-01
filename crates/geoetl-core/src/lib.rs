@@ -24,3 +24,5 @@
 
 pub mod drivers;
 pub mod operations;
+pub mod types;
+pub mod utils;

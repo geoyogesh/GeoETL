@@ -78,19 +78,20 @@ Get started with these beginner-friendly tutorials:
 
 ## Current Status
 
-GeoETL is in **Phase 1 (Foundation)**. Here's what works today:
+GeoETL is in **Phase 1 (Complete)**. Here's what works today:
 
 ✅ **Working Now**:
 - CSV format (read/write with WKT geometries)
 - GeoJSON format (full read/write support)
+- Convert command (CSV ↔ GeoJSON conversions)
+- Info command (dataset schema inspection)
 - Driver registry and capability checking
-- Comprehensive error messages
+- Comprehensive error messages with helpful examples
 
 🚧 **Coming Soon** (Q1-Q2 2026):
 - GeoPackage, Shapefile, Parquet drivers
 - Spatial operations (buffer, intersection, union)
 - CRS transformations
-- Dataset inspection (`info` command)
 
 See our [Roadmap](https://github.com/geoyogesh/geoetl/blob/main/docs/VISION.md) for complete details.
 

@@ -157,9 +157,11 @@ geoetl-cli convert \
   --geometry-column geometry
 ```
 
-**New option**: `--geometry-column geometry`
-- Tells GeoETL which CSV column contains the geometry
-- Default is "geometry", but you can specify any column name
+**Important**: `--geometry-column geometry` is **REQUIRED** for CSV input
+- CSV files must specify which column contains the geometry
+- Unlike GeoJSON (which has a standard geometry structure), CSV can have any column name: `geometry`, `wkt`, `geom`, `the_geom`, etc.
+- GeoETL needs to know which column to read
+- If you forget this parameter, you'll get a clear error message with an example
 
 Check the result:
 ```bash

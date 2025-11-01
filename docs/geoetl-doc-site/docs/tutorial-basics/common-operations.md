@@ -12,7 +12,7 @@ GeoETL has three main commands:
 
 1. **`drivers`** - List available format drivers
 2. **`convert`** - Convert between formats
-3. **`info`** - Display dataset information (coming soon)
+3. **`info`** - Display dataset information and schema
 
 ## Command: `drivers`
 
@@ -59,6 +59,130 @@ geoetl-cli drivers | grep -i "shapefile"
 **Learn about formats**: See what's available
 ```bash
 geoetl-cli drivers | less  # Scroll through list
+```
+
+## Command: `info`
+
+Display detailed information about a dataset including schema, geometry columns, and field types.
+
+### Basic Syntax
+
+```bash
+geoetl-cli info <DATASET> --driver <DRIVER> [OPTIONS]
+```
+
+### CSV Files (Geometry Column Required)
+
+For CSV files, you **must** specify the geometry column:
+
+```bash
+geoetl-cli info cities.csv -f CSV --geometry-column geometry
+```
+
+:::danger REQUIRED
+The `--geometry-column` parameter is **REQUIRED** for CSV files.
+:::
+
+### GeoJSON Files
+
+For GeoJSON files, geometry column is optional:
+
+```bash
+geoetl-cli info cities.geojson -f GeoJSON
+```
+
+### What You See
+
+The info command displays:
+
+1. **Dataset Path** - Absolute path to the file
+2. **Driver Information** - Format driver being used
+3. **Geometry Columns** - Geometry column details:
+   - Column name
+   - GeoArrow extension type
+   - CRS information
+4. **Fields Schema** - All data fields:
+   - Field name
+   - Data type (String, Int64, Float64, etc.)
+   - Nullability
+
+### Example Output
+
+```
+Dataset: /path/to/cities.csv
+Driver: CSV (Comma Separated Value (.csv))
+
+=== Geometry Columns ===
++----------+-------------------+-----+
+| Column   | Extension         | CRS |
++----------+-------------------+-----+
+| geometry | geoarrow.geometry | N/A |
++----------+-------------------+-----+
+
+=== Fields ===
++------------+--------+----------+
+| Field      | Type   | Nullable |
++------------+--------+----------+
+| name       | String | Yes      |
+| population | Int64  | Yes      |
+| country    | String | Yes      |
++------------+--------+----------+
+```
+
+### Common Use Cases
+
+**Before conversion**: Check dataset structure
+```bash
+# Inspect CSV before converting
+geoetl-cli info data.csv -f CSV --geometry-column geometry
+
+# Then convert
+geoetl-cli convert -i data.csv -o data.geojson \
+  --input-driver CSV --output-driver GeoJSON \
+  --geometry-column geometry
+```
+
+**Verify file format**: Confirm driver compatibility
+```bash
+# Check if file is valid GeoJSON
+geoetl-cli info data.geojson -f GeoJSON
+```
+
+**Debug issues**: See schema when conversions fail
+```bash
+# Use with verbose mode for more details
+geoetl-cli -v info data.csv -f CSV --geometry-column wkt
+```
+
+### Options
+
+| Option | Short | Description | Required |
+|--------|-------|-------------|----------|
+| `<DATASET>` | | Path to input file | Yes |
+| `--driver <DRIVER>` | `-f` | Format driver | Yes |
+| `--geometry-column <COLUMN>` | | Geometry column name | **Yes for CSV** |
+| `--geometry-type <TYPE>` | | Geometry type hint | No |
+
+### Custom Geometry Column
+
+If your CSV uses a different column name:
+
+```bash
+# CSV with "wkt" column instead of "geometry"
+geoetl-cli info data.csv -f CSV --geometry-column wkt
+
+# CSV with "location" column
+geoetl-cli info places.csv -f CSV --geometry-column location
+```
+
+### Geometry Type Hint
+
+Optionally specify geometry type for CSV:
+
+```bash
+geoetl-cli info points.csv -f CSV \
+  --geometry-column geometry \
+  --geometry-type Point
 ```
 
 ## Command: `convert`
@@ -212,16 +336,19 @@ geoetl-cli convert -i data.geojson -o data.csv \
 # 1. Check file exists
 ls -lh data.geojson
 
-# 2. Validate it's readable (coming soon: geoetl-cli info)
-head data.geojson
+# 2. Inspect dataset schema
+geoetl-cli info data.geojson -f GeoJSON
 
-# 3. Convert
+# 3. Convert with verbose output
 geoetl-cli -v convert -i data.geojson -o data.csv \
   --input-driver GeoJSON --output-driver CSV
 
 # 4. Verify output
 head data.csv
 wc -l data.csv
+
+# 5. Inspect converted file
+geoetl-cli info data.csv -f CSV --geometry-column geometry
 ```
 
 ### Workflow 3: Round-Trip Test
@@ -484,9 +611,20 @@ clean:
 # List drivers
 geoetl-cli drivers
 
+# Get dataset info (CSV - geometry column required)
+geoetl-cli info data.csv -f CSV --geometry-column geometry
+
+# Get dataset info (GeoJSON)
+geoetl-cli info data.geojson -f GeoJSON
+
 # Convert files
 geoetl-cli convert -i input.geojson -o output.csv \
   --input-driver GeoJSON --output-driver CSV
+
+# Convert CSV (geometry column required)
+geoetl-cli convert -i input.csv -o output.geojson \
+  --input-driver CSV --output-driver GeoJSON \
+  --geometry-column geometry
 
 # Verbose output
 geoetl-cli -v convert -i input.geojson -o output.csv \
@@ -495,6 +633,7 @@ geoetl-cli -v convert -i input.geojson -o output.csv \
 # Get help
 geoetl-cli --help
 geoetl-cli convert --help
+geoetl-cli info --help
 
 # Show version
 geoetl-cli --version
@@ -519,7 +658,8 @@ grep -i "california" data.csv
 ## Key Takeaways
 
 🎯 **What you learned**:
-- The three core GeoETL commands
+- The three core GeoETL commands (drivers, info, convert)
+- How to inspect dataset schemas with `info`
 - Common conversion patterns
 - Global options (verbose, debug, help)
 - File path handling
@@ -529,6 +669,7 @@ grep -i "california" data.csv
 
 🚀 **Skills unlocked**:
 - Daily GeoETL operations
+- Dataset inspection and validation
 - Troubleshooting conversions
 - Automating workflows
 - Working efficiently with geospatial data

@@ -4,11 +4,112 @@
 //! operations on geospatial data, leveraging the driver registry for format support.
 
 use crate::drivers::Driver;
+use crate::types::{DatasetInfo, FieldInfo, GeometryColumnInfo};
+use crate::utils::ArrowDataTypeExt;
 use anyhow::{Result, anyhow};
 use datafusion::arrow::array::RecordBatch;
 use datafusion::prelude::SessionContext;
 use log::info;
 use std::fs::File;
+
+/// Initialize a `DataFusion` session context and register a dataset.
+///
+/// This is a common entry point for all ETL operations that need to work with a dataset.
+/// It creates a new session context, registers the dataset with the specified parameters,
+/// and returns the context ready for use.
+///
+/// # Arguments
+///
+/// * `input` - Path to the input file
+/// * `driver` - The driver responsible for reading the format
+/// * `geometry_column` - Name of the geometry column (for CSV)
+/// * `geometry_type` - Optional geometry type hint (for CSV)
+///
+/// # Returns
+///
+/// A `SessionContext` with the dataset registered as "dataset" table.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The file cannot be read or parsed.
+/// - The driver format is not yet implemented.
+async fn initialize_context(
+    input: &str,
+    driver: &Driver,
+    geometry_column: &str,
+    geometry_type: Option<&str>,
+) -> Result<SessionContext> {
+    let ctx = SessionContext::new();
+    let table_name = "dataset";
+    register_catalog(
+        &ctx,
+        input,
+        driver,
+        table_name,
+        geometry_column,
+        geometry_type,
+    )
+    .await?;
+    Ok(ctx)
+}
+
+/// Register a dataset in the `DataFusion` catalog.
+///
+/// This function handles the registration of different data formats (`CSV`, `GeoJSON`, etc.)
+/// into a `DataFusion` session context, making them available for SQL queries or conversion.
+///
+/// # Arguments
+///
+/// * `ctx` - The `DataFusion` session context
+/// * `input` - Path to the input file
+/// * `driver` - The driver responsible for reading the format
+/// * `table_name` - Name to register the table as
+/// * `geometry_column` - Name of the geometry column (for CSV)
+/// * `geometry_type` - Optional geometry type hint (for CSV)
+///
+/// # Returns
+///
+/// A `Result` indicating success or an error if registration fails.
+async fn register_catalog(
+    ctx: &SessionContext,
+    input: &str,
+    driver: &Driver,
+    table_name: &str,
+    geometry_column: &str,
+    geometry_type: Option<&str>,
+) -> Result<()> {
+    match driver.short_name {
+        "CSV" => {
+            use datafusion_csv::{CsvFormatOptions, SessionContextCsvExt};
+            let mut csv_options = CsvFormatOptions::new();
+            let geoarrow_type = parse_geometry_type(geometry_type.unwrap_or("Geometry"))?;
+            csv_options = csv_options.with_geometry_from_wkt(geometry_column, geoarrow_type);
+            let df = ctx
+                .read_csv_with_options(input, csv_options)
+                .await
+                .map_err(|e| anyhow!("Failed to read CSV file: {e}"))?;
+            ctx.register_table(table_name, df.into_view())
+                .map_err(|e| anyhow!("Failed to register table: {e}"))?;
+        },
+        "GeoJSON" => {
+            use datafusion_geojson::SessionContextGeoJsonExt;
+            let df = ctx
+                .read_geojson_file(input)
+                .await
+                .map_err(|e| anyhow!("Failed to read GeoJSON file: {e}"))?;
+            ctx.register_table(table_name, df.into_view())
+                .map_err(|e| anyhow!("Failed to register table: {e}"))?;
+        },
+        _ => {
+            return Err(anyhow!(
+                "Input driver '{}' is not yet implemented",
+                driver.short_name
+            ));
+        },
+    }
+    Ok(())
+}
 
 /// Parse geometry type string into `GeoArrowType`
 fn parse_geometry_type(geom_type_str: &str) -> Result<geoarrow_schema::GeoArrowType> {
@@ -41,45 +142,6 @@ fn parse_geometry_type(geom_type_str: &str) -> Result<geoarrow_schema::GeoArrowT
         },
     };
     Ok(geoarrow_type)
-}
-
-/// Read data from CSV file
-async fn read_csv(
-    ctx: &SessionContext,
-    input: &str,
-    geometry_column: &str,
-    _geometry_type: Option<&str>,
-) -> Result<Vec<RecordBatch>> {
-    use datafusion_csv::{CsvFormatOptions, SessionContextCsvExt};
-    info!("Reading CSV file: {input}");
-
-    let mut csv_options = CsvFormatOptions::new();
-
-    // Always use Geometry type (mixed geometries) to auto-detect from WKT content
-    let geoarrow_type = parse_geometry_type("Geometry")?;
-    info!("Parsing WKT from column '{geometry_column}' as Geometry (auto-detect)");
-    csv_options = csv_options.with_geometry_from_wkt(geometry_column, geoarrow_type);
-
-    let df = ctx
-        .read_csv_with_options(input, csv_options)
-        .await
-        .map_err(|e| anyhow!("Failed to read CSV file: {e}"))?;
-    df.collect()
-        .await
-        .map_err(|e| anyhow!("Failed to collect CSV data: {e}"))
-}
-
-/// Read data from `GeoJSON` file
-async fn read_geojson(ctx: &SessionContext, input: &str) -> Result<Vec<RecordBatch>> {
-    use datafusion_geojson::SessionContextGeoJsonExt;
-    info!("Reading GeoJSON file: {input}");
-    let df = ctx
-        .read_geojson_file(input)
-        .await
-        .map_err(|e| anyhow!("Failed to read GeoJSON file: {e}"))?;
-    df.collect()
-        .await
-        .map_err(|e| anyhow!("Failed to collect GeoJSON data: {e}"))
 }
 
 /// Write data to CSV file
@@ -181,6 +243,8 @@ fn write_geojson(output: &str, batches: &[RecordBatch]) -> Result<()> {
 /// * `output` - The path where the converted geospatial data will be written.
 /// * `input_driver` - The driver responsible for reading the input format.
 /// * `output_driver` - The driver responsible for writing the output format.
+/// * `geometry_column` - Name of the geometry column (for CSV)
+/// * `geometry_type` - Optional geometry type hint (for CSV)
 ///
 /// # Returns
 ///
@@ -189,9 +253,13 @@ fn write_geojson(output: &str, batches: &[RecordBatch]) -> Result<()> {
 /// # Errors
 ///
 /// This function will return an error if:
-/// - The `input_driver` does not support reading.
-/// - The `output_driver` does not support writing.
-/// - The actual conversion logic (once implemented) encounters an error.
+/// - The file cannot be read or parsed.
+/// - The file format is not yet implemented.
+/// - The output file cannot be written.
+///
+/// # Note
+///
+/// Driver capability validation should be performed by the caller before invoking this function.
 pub async fn convert(
     input: &str,
     output: &str,
@@ -204,34 +272,18 @@ pub async fn convert(
     info!("Input: {} (Driver: {})", input, input_driver.short_name);
     info!("Output: {} (Driver: {})", output, output_driver.short_name);
 
-    // Basic validation (already done in CLI, but good to have here too)
-    if !input_driver.capabilities.read.is_supported() {
-        return Err(anyhow!(
-            "Input driver \'{}\' does not support reading.",
-            input_driver.short_name
-        ));
-    }
-    if !output_driver.capabilities.write.is_supported() {
-        return Err(anyhow!(
-            "Output driver \'{}\' does not support writing.",
-            output_driver.short_name
-        ));
-    }
+    // Initialize context and register dataset
+    let ctx = initialize_context(input, input_driver, geometry_column, geometry_type).await?;
 
-    // Create DataFusion session context
-    let ctx = SessionContext::new();
-
-    // Read data based on input driver
-    let batches = match input_driver.short_name {
-        "CSV" => read_csv(&ctx, input, geometry_column, geometry_type).await?,
-        "GeoJSON" => read_geojson(&ctx, input).await?,
-        _ => {
-            return Err(anyhow!(
-                "Input driver '{}' is not yet implemented for conversion",
-                input_driver.short_name
-            ));
-        },
-    };
+    // Collect batches from the registered table
+    let table = ctx
+        .table("dataset")
+        .await
+        .map_err(|e| anyhow!("Failed to get table: {e}"))?;
+    let batches = table
+        .collect()
+        .await
+        .map_err(|e| anyhow!("Failed to collect data: {e}"))?;
 
     info!("Read {} record batch(es)", batches.len());
     let total_rows: usize = batches.iter().map(RecordBatch::num_rows).sum();
@@ -251,6 +303,115 @@ pub async fn convert(
 
     info!("Conversion completed successfully");
     Ok(())
+}
+
+/// Get information about a geospatial dataset.
+///
+/// This function reads a geospatial file and returns structured information about it, including:
+/// - Dataset path and driver
+/// - Geometry column information (name, extension, CRS)
+/// - Field schema (name, data type, nullable status)
+///
+/// # Arguments
+///
+/// * `input` - The path to the input geospatial data file.
+/// * `input_driver` - The driver responsible for reading the input format.
+/// * `geometry_column` - Name of the geometry column (for CSV)
+/// * `geometry_type` - Optional geometry type hint (for CSV)
+///
+/// # Returns
+///
+/// A `Result` containing `DatasetInfo` or an error if the info operation fails.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - The file cannot be read or parsed.
+/// - The file format is not yet implemented.
+///
+/// # Note
+///
+/// Driver capability validation should be performed by the caller before invoking this function.
+pub async fn info(
+    input: &str,
+    input_driver: &Driver,
+    geometry_column: &str,
+    geometry_type: Option<&str>,
+) -> Result<DatasetInfo> {
+    info!("Reading dataset information:");
+    info!("Input: {} (Driver: {})", input, input_driver.short_name);
+
+    // Initialize context and register dataset
+    let ctx = initialize_context(input, input_driver, geometry_column, geometry_type).await?;
+
+    // Build dataset info using context
+    let dataset_info =
+        build_dataset_info_from_context(&ctx, "dataset", input, input_driver).await?;
+
+    Ok(dataset_info)
+}
+
+/// Build dataset information structure using `DataFusion` context.
+async fn build_dataset_info_from_context(
+    ctx: &SessionContext,
+    table_name: &str,
+    input: &str,
+    driver: &Driver,
+) -> Result<DatasetInfo> {
+    // Get the table schema from the context
+    let table = ctx
+        .table(table_name)
+        .await
+        .map_err(|e| anyhow!("Failed to get table: {e}"))?;
+
+    let schema = table.schema();
+    let arrow_schema = schema.as_arrow();
+
+    // Find and collect geometry column information
+    let mut geometry_column_info = Vec::new();
+    for field in arrow_schema.fields() {
+        let metadata = field.metadata();
+        if metadata.contains_key("ARROW:extension:name") {
+            let extension_name = metadata.get("ARROW:extension:name").unwrap();
+            if extension_name.starts_with("geoarrow") {
+                geometry_column_info.push(GeometryColumnInfo {
+                    name: field.name().to_string(),
+                    data_type: format!("{:?}", field.data_type()),
+                    extension: Some(extension_name.clone()),
+                    crs: metadata.get("ARROW:extension:metadata").cloned(),
+                });
+            }
+        }
+    }
+
+    // Collect field information
+    let mut field_infos = Vec::new();
+    for field in arrow_schema.fields() {
+        // Skip geometry columns in field listing
+        let metadata = field.metadata();
+        let is_geometry = metadata.contains_key("ARROW:extension:name")
+            && metadata
+                .get("ARROW:extension:name")
+                .is_some_and(|s| s.starts_with("geoarrow"));
+
+        if is_geometry {
+            continue;
+        }
+
+        field_infos.push(FieldInfo {
+            name: field.name().to_string(),
+            data_type: field.data_type().format(),
+            nullable: field.is_nullable(),
+        });
+    }
+
+    Ok(DatasetInfo {
+        dataset: input.to_string(),
+        driver: driver.short_name.to_string(),
+        driver_long_name: driver.long_name.to_string(),
+        geometry_columns: geometry_column_info,
+        fields: field_infos,
+    })
 }
 
 #[cfg(test)]
@@ -427,9 +588,11 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Input driver 'GML' does not support reading."
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("is not yet implemented")
         );
         Ok(())
     }
@@ -461,9 +624,11 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Output driver 'GML' does not support writing."
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("is not yet implemented for conversion")
         );
         Ok(())
     }
@@ -549,7 +714,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("is not yet implemented for conversion")
+                .contains("is not yet implemented")
         );
         Ok(())
     }
