@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 log.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 datafusion.workspace = true
 geoarrow-schema.workspace = true

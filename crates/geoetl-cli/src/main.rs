@@ -18,7 +18,6 @@
 
 mod display;
 
-use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use tabled::Table;
 use tracing::{Level, info};
@@ -26,6 +25,7 @@ use tracing_log::LogTracer;
 use tracing_subscriber::FmtSubscriber;
 
 use geoetl_core::drivers::get_available_drivers;
+use geoetl_core::error::{self, GeoEtlError};
 
 use display::{DriverRow, display_dataset_info};
 
@@ -134,7 +134,7 @@ enum Commands {
 ///
 /// Returns an error if command execution fails or if the logging system cannot be initialized.
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
     // Initialize geoetl-core (registers all format drivers)
     geoetl_core::init::initialize();
 
@@ -150,17 +150,23 @@ async fn main() -> Result<()> {
     };
 
     // Bridge logs from the `log` crate to the `tracing` ecosystem.
-    LogTracer::init()?;
+    if let Err(e) = LogTracer::init() {
+        eprintln!("Failed to initialize logger: {e}");
+        std::process::exit(1);
+    }
 
     let subscriber = FmtSubscriber::builder()
         .with_max_level(log_level)
         .with_target(true) // Show module paths for better context
         .finish();
 
-    tracing::subscriber::set_global_default(subscriber)?;
+    if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+        eprintln!("Failed to set global subscriber: {e}");
+        std::process::exit(1);
+    }
 
-    // Execute the command
-    match cli.command {
+    // Execute the command and handle errors with user-friendly messages
+    let result = match cli.command {
         Commands::Convert {
             input,
             output,
@@ -178,7 +184,7 @@ async fn main() -> Result<()> {
                 &geometry_column,
                 geometry_type.as_deref(),
             )
-            .await?;
+            .await
         },
         Commands::Info {
             input,
@@ -193,14 +199,21 @@ async fn main() -> Result<()> {
                 geometry_column.as_deref(),
                 geometry_type.as_deref(),
             )
-            .await?;
+            .await
         },
-        Commands::Drivers => {
-            handle_drivers()?;
-        },
-    }
+        Commands::Drivers => handle_drivers(),
+    };
 
-    Ok(())
+    // Handle errors with user-friendly messages
+    if let Err(e) = result {
+        eprintln!("\nError: {}", e.user_message());
+
+        if let Some(suggestion) = e.recovery_suggestion() {
+            eprintln!("\nSuggestion: {suggestion}");
+        }
+
+        std::process::exit(1);
+    }
 }
 
 use geoetl_core::drivers;
@@ -213,7 +226,7 @@ async fn handle_convert(
     output_driver_name: &str,
     geometry_column: &str,
     geometry_type: Option<&str>,
-) -> Result<()> {
+) -> Result<(), GeoEtlError> {
     info!("Validating convert command:");
     info!("Input: {input}");
     info!("Output: {output}");
@@ -225,21 +238,25 @@ async fn handle_convert(
     }
 
     let input_driver = drivers::find_driver(input_driver_name)
-        .ok_or_else(|| anyhow!("Input driver '{input_driver_name}' not found."))?;
+        .ok_or_else(|| error::driver_not_found(input_driver_name))?;
 
     if !input_driver.capabilities.read.is_supported() {
-        return Err(anyhow!(
-            "Input driver '{input_driver_name}' does not support reading."
-        ));
+        return Err(error::DriverError::OperationNotSupported {
+            driver: input_driver_name.to_string(),
+            operation: "reading".to_string(),
+        }
+        .into());
     }
 
     let output_driver = drivers::find_driver(output_driver_name)
-        .ok_or_else(|| anyhow!("Output driver '{output_driver_name}' not found."))?;
+        .ok_or_else(|| error::driver_not_found(output_driver_name))?;
 
     if !output_driver.capabilities.write.is_supported() {
-        return Err(anyhow!(
-            "Output driver '{output_driver_name}' does not support writing."
-        ));
+        return Err(error::DriverError::OperationNotSupported {
+            driver: output_driver_name.to_string(),
+            operation: "writing".to_string(),
+        }
+        .into());
     }
 
     info!("Convert command:");
@@ -261,7 +278,7 @@ async fn handle_info(
     driver_name: &str,
     geometry_column: Option<&str>,
     geometry_type: Option<&str>,
-) -> Result<()> {
+) -> Result<(), GeoEtlError> {
     info!("Info command:");
     info!("Input: {input}");
     info!("Driver: {driver_name}");
@@ -271,43 +288,47 @@ async fn handle_info(
     let absolute_path = if input_path.is_absolute() {
         input_path.to_path_buf()
     } else {
-        std::env::current_dir()?.join(input_path)
+        std::env::current_dir()
+            .map_err(|e| error::IoError::InvalidPath {
+                path: input_path.to_path_buf(),
+                reason: format!("Could not get current directory: {e}"),
+            })?
+            .join(input_path)
     };
 
     // Convert to string for use with operations
     let resolved_input = absolute_path
         .to_str()
-        .ok_or_else(|| anyhow!("Invalid path: could not convert path to string"))?;
+        .ok_or_else(|| error::IoError::InvalidPath {
+            path: absolute_path.clone(),
+            reason: "Path contains invalid UTF-8 characters".to_string(),
+        })?;
 
     // Verify file exists
     if !absolute_path.exists() {
-        return Err(anyhow!(
-            "File not found: {input}\nResolved path: {resolved_input}"
-        ));
+        return Err(error::IoError::FileNotFound {
+            path: absolute_path,
+        }
+        .into());
     }
 
     // Find the specified driver
-    let driver = drivers::find_driver(driver_name).ok_or_else(|| {
-        anyhow!(
-            "Driver '{driver_name}' not found. Use 'geoetl-cli drivers' to list available drivers."
-        )
-    })?;
+    let driver =
+        drivers::find_driver(driver_name).ok_or_else(|| error::driver_not_found(driver_name))?;
 
     // Validate driver supports info or read operations
     if !driver.capabilities.info.is_supported() && !driver.capabilities.read.is_supported() {
-        return Err(anyhow!(
-            "Driver '{}' does not support info or read operations.",
-            driver.short_name
-        ));
+        return Err(error::DriverError::OperationNotSupported {
+            driver: driver.short_name.to_string(),
+            operation: "info or read".to_string(),
+        }
+        .into());
     }
 
     // Validate geometry column is provided for CSV
     let geometry_col = if driver.short_name == "CSV" {
-        geometry_column.ok_or_else(|| {
-            anyhow!(
-                "The --geometry-column argument is required for CSV files.\n\
-                 Example: geoetl-cli info {input} -f CSV --geometry-column wkt"
-            )
+        geometry_column.ok_or_else(|| error::ConfigError::MissingRequired {
+            option: "geometry-column (required for CSV files)".to_string(),
         })?
     } else {
         geometry_column.unwrap_or("geometry")
@@ -334,7 +355,7 @@ async fn handle_info(
 /// This function returns a `Result` for consistency with other command handlers,
 /// but does not currently perform any operations that fail, so it always returns `Ok(())`.
 #[allow(clippy::unnecessary_wraps)]
-fn handle_drivers() -> Result<()> {
+fn handle_drivers() -> Result<(), GeoEtlError> {
     let drivers = get_available_drivers();
 
     println!("\nAvailable Drivers ({} total):\n", drivers.len());
@@ -381,7 +402,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_convert_invalid_input_driver() -> Result<()> {
+    async fn test_handle_convert_invalid_input_driver() {
         let input_driver_name = "NonExistentDriver";
         let output_driver_name = "GeoJSON";
 
@@ -395,15 +416,16 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Input driver 'NonExistentDriver' not found."
-        );
-        Ok(())
+        let err = result.unwrap_err();
+        // Check that it's a DriverError::NotFound
+        assert!(matches!(
+            err,
+            GeoEtlError::Driver(error::DriverError::NotFound { .. })
+        ));
     }
 
     #[tokio::test]
-    async fn test_handle_convert_input_driver_no_read_support() -> Result<()> {
+    async fn test_handle_convert_input_driver_no_read_support() {
         let input_driver_name = "GML"; // GML does not support read
         let output_driver_name = "GeoJSON";
 
@@ -417,15 +439,16 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Input driver 'GML' does not support reading."
-        );
-        Ok(())
+        let err = result.unwrap_err();
+        // Check that it's a DriverError::OperationNotSupported
+        assert!(matches!(
+            err,
+            GeoEtlError::Driver(error::DriverError::OperationNotSupported { .. })
+        ));
     }
 
     #[tokio::test]
-    async fn test_handle_convert_invalid_output_driver() -> Result<()> {
+    async fn test_handle_convert_invalid_output_driver() {
         let input_driver_name = "CSV";
         let output_driver_name = "NonExistentDriver";
 
@@ -439,15 +462,16 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Output driver 'NonExistentDriver' not found."
-        );
-        Ok(())
+        let err = result.unwrap_err();
+        // Check that it's a DriverError::NotFound
+        assert!(matches!(
+            err,
+            GeoEtlError::Driver(error::DriverError::NotFound { .. })
+        ));
     }
 
     #[tokio::test]
-    async fn test_handle_convert_output_driver_no_write_support() -> Result<()> {
+    async fn test_handle_convert_output_driver_no_write_support() {
         let input_driver_name = "CSV";
         let output_driver_name = "GML"; // GML does not support write
 
@@ -461,10 +485,11 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Output driver 'GML' does not support writing."
-        );
-        Ok(())
+        let err = result.unwrap_err();
+        // Check that it's a DriverError::OperationNotSupported
+        assert!(matches!(
+            err,
+            GeoEtlError::Driver(error::DriverError::OperationNotSupported { .. })
+        ));
     }
 }

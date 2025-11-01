@@ -692,4 +692,3 @@ Ready to do more? Check out the [GeoETL GitHub repository](https://github.com/ge
 - **Command help**: `geoetl-cli <command> --help`
 - **GitHub Issues**: [Report problems](https://github.com/geoyogesh/geoetl/issues)
 - **GitHub Discussions**: [Ask questions](https://github.com/geoyogesh/geoetl/discussions)
-- **User Guide**: [Full documentation](https://github.com/geoyogesh/geoetl/blob/main/docs/USERGUIDE.md)

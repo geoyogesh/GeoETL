@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide is for developers who want to contribute to GeoETL or build it from source. If you're looking to **use** GeoETL, see the [README](../README.md) and [User Guide](USERGUIDE.md) instead.
+This guide is for developers who want to contribute to GeoETL or build it from source. If you're looking to **use** GeoETL, see the [README](../README.md) and [Documentation Website](https://geoetl.com) instead.
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ This guide is for developers who want to contribute to GeoETL or build it from s
 
 ## Related Documentation
 
-- [User Guide](USERGUIDE.md) - Complete guide to using GeoETL CLI
+- [Documentation Website](https://geoetl.com) - Complete guide to using GeoETL CLI
 - [DataFusion Geospatial Format Integration Guide](DATAFUSION_GEOSPATIAL_FORMAT_INTEGRATION_GUIDE.md) - Implementing custom geospatial file formats with DataFusion and GeoArrow
 - [Vision](VISION.md) - Project vision and roadmap
 - [Architecture Decision Records](adr/) - Technical design decisions

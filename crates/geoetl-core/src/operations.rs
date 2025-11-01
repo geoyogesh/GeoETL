@@ -4,13 +4,16 @@
 //! operations on geospatial data, leveraging the driver registry for format support.
 
 use crate::drivers::Driver;
+use crate::error::{self, DriverError, GeoEtlError, IoErrorExt};
 use crate::types::{DatasetInfo, FieldInfo, GeometryColumnInfo};
 use crate::utils::ArrowDataTypeExt;
-use anyhow::{Result, anyhow};
 use datafusion::arrow::array::RecordBatch;
 use datafusion::prelude::SessionContext;
 use log::info;
 use std::fs::File;
+
+// Type alias for backward compatibility during migration
+type Result<T> = std::result::Result<T, GeoEtlError>;
 
 /// Initialize a `DataFusion` session context and register a dataset.
 ///
@@ -85,7 +88,10 @@ fn prepare_reader_options(
             use datafusion_geojson::GeoJsonFormatOptions;
             Ok(Box::new(GeoJsonFormatOptions::default()))
         },
-        _ => Err(anyhow!("Unknown driver '{driver_name}'")),
+        _ => Err(DriverError::NotRegistered {
+            driver: driver_name.to_string(),
+        }
+        .into()),
     }
 }
 
@@ -117,14 +123,20 @@ async fn register_catalog(
 ) -> Result<()> {
     // Get factory from global registry
     let registry = geoetl_core_common::driver_registry();
-    let factory = registry
-        .find_factory(driver.short_name)
-        .ok_or_else(|| anyhow!("Driver '{}' not registered", driver.short_name))?;
+    let factory =
+        registry
+            .find_factory(driver.short_name)
+            .ok_or_else(|| DriverError::NotRegistered {
+                driver: driver.short_name.to_string(),
+            })?;
 
     // Create reader strategy
     let reader = factory
         .create_reader()
-        .ok_or_else(|| anyhow!("Driver '{}' does not support reading", driver.short_name))?;
+        .ok_or_else(|| DriverError::OperationNotSupported {
+            driver: driver.short_name.to_string(),
+            operation: "reading".to_string(),
+        })?;
 
     // Prepare format-specific options
     let options = prepare_reader_options(driver.short_name, geometry_column, geometry_type)?;
@@ -134,16 +146,18 @@ async fn register_catalog(
         .create_table_provider(&ctx.state(), input, options)
         .await
         .map_err(|e| {
-            anyhow!(
-                "Failed to read {} file '{}': {}",
-                driver.short_name,
-                input,
-                e
-            )
+            GeoEtlError::Io(error::IoError::Read {
+                format: driver.short_name.to_string(),
+                path: input.into(),
+                source: e.into(),
+            })
         })?;
 
-    ctx.register_table(table_name, table)
-        .map_err(|e| anyhow!("Failed to register table '{table_name}': {e}"))?;
+    ctx.register_table(table_name, table).map_err(|e| {
+        GeoEtlError::from(anyhow::anyhow!(
+            "Failed to register table '{table_name}': {e}"
+        ))
+    })?;
 
     Ok(())
 }
@@ -173,9 +187,10 @@ fn parse_geometry_type(geom_type_str: &str) -> Result<geoarrow_schema::GeoArrowT
             GeoArrowType::MultiPolygon(MultiPolygonType::new(Dimension::XY, Arc::default()))
         },
         _ => {
-            return Err(anyhow!(
-                "Unsupported geometry type '{geom_type_str}'. Supported types: Geometry (mixed), Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon"
-            ));
+            return Err(error::FormatError::UnsupportedGeometryType {
+                geometry_type: geom_type_str.to_string(),
+            }
+            .into());
         },
     };
     Ok(geoarrow_type)
@@ -189,11 +204,11 @@ fn write_csv(output: &str, batches: &[RecordBatch], geometry_column: &str) -> Re
     // Convert geometry columns to WKT before writing
     let converted_batches = convert_geometry_to_wkt(batches, geometry_column)?;
 
-    let mut output_file =
-        File::create(output).map_err(|e| anyhow!("Failed to create output file: {e}"))?;
+    let mut output_file = File::create(output)
+        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to create output file: {e}")))?;
     let options = CsvWriterOptions::default();
     write_csv(&mut output_file, &converted_batches, &options)
-        .map_err(|e| anyhow!("Failed to write CSV file: {e}"))
+        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to write CSV file: {e}")))
 }
 
 /// Convert geometry columns to WKT format for CSV writing
@@ -224,12 +239,16 @@ fn convert_geometry_to_wkt(
             let geom_field = schema.field(idx);
 
             // Convert Arrow array to GeoArrowArray
-            let geoarrow_array = from_arrow_array(geom_array.as_ref(), geom_field)
-                .map_err(|e| anyhow!("Failed to convert to GeoArrowArray: {e}"))?;
+            let geoarrow_array =
+                from_arrow_array(geom_array.as_ref(), geom_field).map_err(|e| {
+                    GeoEtlError::from(anyhow::anyhow!("Failed to convert to GeoArrowArray: {e}"))
+                })?;
 
             // Convert to WKT using geoarrow cast (using i32 offset)
-            let wkt_array: geoarrow_array::array::WktArray = to_wkt(&geoarrow_array)
-                .map_err(|e| anyhow!("Failed to convert geometry to WKT: {e}"))?;
+            let wkt_array: geoarrow_array::array::WktArray =
+                to_wkt(&geoarrow_array).map_err(|e| {
+                    GeoEtlError::from(anyhow::anyhow!("Failed to convert geometry to WKT: {e}"))
+                })?;
 
             // Create new schema with WKT column
             let mut new_fields = schema.fields().to_vec();
@@ -245,8 +264,11 @@ fn convert_geometry_to_wkt(
             new_columns[idx] = wkt_array.to_array_ref();
 
             // Create new batch
-            let new_batch = RecordBatch::try_new(new_schema, new_columns)
-                .map_err(|e| anyhow!("Failed to create record batch with WKT: {e}"))?;
+            let new_batch = RecordBatch::try_new(new_schema, new_columns).map_err(|e| {
+                GeoEtlError::from(anyhow::anyhow!(
+                    "Failed to create record batch with WKT: {e}"
+                ))
+            })?;
 
             converted_batches.push(new_batch);
         } else {
@@ -262,11 +284,11 @@ fn convert_geometry_to_wkt(
 fn write_geojson(output: &str, batches: &[RecordBatch]) -> Result<()> {
     use datafusion_geojson::{GeoJsonWriterOptions, write_geojson};
     info!("Writing GeoJSON file: {output}");
-    let mut output_file =
-        File::create(output).map_err(|e| anyhow!("Failed to create output file: {e}"))?;
+    let mut output_file = File::create(output)
+        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to create output file: {e}")))?;
     let options = GeoJsonWriterOptions::default();
     write_geojson(&mut output_file, batches, &options)
-        .map_err(|e| anyhow!("Failed to write GeoJSON file: {e}"))
+        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to write GeoJSON file: {e}")))
 }
 
 /// Performs a geospatial data conversion from an input format to an output format.
@@ -316,11 +338,11 @@ pub async fn convert(
     let table = ctx
         .table("dataset")
         .await
-        .map_err(|e| anyhow!("Failed to get table: {e}"))?;
+        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to get table: {e}")))?;
     let batches = table
         .collect()
         .await
-        .map_err(|e| anyhow!("Failed to collect data: {e}"))?;
+        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to collect data: {e}")))?;
 
     info!("Read {} record batch(es)", batches.len());
     let total_rows: usize = batches.iter().map(RecordBatch::num_rows).sum();
@@ -328,13 +350,13 @@ pub async fn convert(
 
     // Write data based on output driver
     match output_driver.short_name {
-        "CSV" => write_csv(output, &batches, geometry_column)?,
-        "GeoJSON" => write_geojson(output, &batches)?,
+        "CSV" => write_csv(output, &batches, geometry_column).with_write_context("CSV", output)?,
+        "GeoJSON" => write_geojson(output, &batches).with_write_context("GeoJSON", output)?,
         _ => {
-            return Err(anyhow!(
-                "Output driver '{}' is not yet implemented for conversion",
-                output_driver.short_name
-            ));
+            return Err(DriverError::NotRegistered {
+                driver: output_driver.short_name.to_string(),
+            }
+            .into());
         },
     }
 
@@ -399,7 +421,7 @@ async fn build_dataset_info_from_context(
     let table = ctx
         .table(table_name)
         .await
-        .map_err(|e| anyhow!("Failed to get table: {e}"))?;
+        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to get table: {e}")))?;
 
     let schema = table.schema();
     let arrow_schema = schema.as_arrow();
@@ -673,12 +695,13 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("is not yet implemented for conversion")
-        );
+        let err = result.unwrap_err();
+        // Check that it's a DriverError::NotRegistered for GML
+        assert!(matches!(
+            err,
+            GeoEtlError::Driver(DriverError::NotRegistered { .. })
+        ));
+        assert!(err.to_string().contains("GML"));
         Ok(())
     }
 
