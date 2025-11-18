@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="80" fill="#e3f2fd" opacity="0.3"/>
+
+  <!-- Back file layer -->
+  <rect x="55" y="65" width="70" height="85" rx="6" fill="#e8f5e9" stroke="#66bb6a" stroke-width="2.5" opacity="0.7"/>
+  <path d="M 125 65 L 125 82 L 142 82 L 125 65" fill="#66bb6a" opacity="0.7"/>
+  <rect x="125" y="65" width="17" height="17" fill="none" stroke="#66bb6a" stroke-width="2.5" opacity="0.7"/>
+
+  <!-- Back file lines -->
+  <line x1="65" y1="95" x2="115" y2="95" stroke="#66bb6a" stroke-width="2" opacity="0.5"/>
+  <line x1="65" y1="105" x2="110" y2="105" stroke="#66bb6a" stroke-width="2" opacity="0.5"/>
+  <line x1="65" y1="115" x2="115" y2="115" stroke="#66bb6a" stroke-width="2" opacity="0.5"/>
+
+  <!-- Middle file layer -->
+  <rect x="65" y="55" width="70" height="85" rx="6" fill="#fff3e0" stroke="#ff9800" stroke-width="2.5" opacity="0.85"/>
+  <path d="M 135 55 L 135 72 L 152 72 L 135 55" fill="#ff9800" opacity="0.85"/>
+  <rect x="135" y="55" width="17" height="17" fill="none" stroke="#ff9800" stroke-width="2.5" opacity="0.85"/>
+
+  <!-- Middle file lines -->
+  <line x1="75" y1="85" x2="125" y2="85" stroke="#ff9800" stroke-width="2" opacity="0.6"/>
+  <line x1="75" y1="95" x2="120" y2="95" stroke="#ff9800" stroke-width="2" opacity="0.6"/>
+  <line x1="75" y1="105" x2="125" y2="105" stroke="#ff9800" stroke-width="2" opacity="0.6"/>
+
+  <!-- Front file layer -->
+  <rect x="75" y="45" width="70" height="85" rx="6" fill="#e3f2fd" stroke="#2196f3" stroke-width="2.5"/>
+  <path d="M 145 45 L 145 62 L 162 62 L 145 45" fill="#2196f3"/>
+  <rect x="145" y="45" width="17" height="17" fill="none" stroke="#2196f3" stroke-width="2.5"/>
+
+  <!-- Front file lines (representing content) -->
+  <line x1="85" y1="75" x2="135" y2="75" stroke="#2196f3" stroke-width="2.5"/>
+  <line x1="85" y1="85" x2="130" y2="85" stroke="#2196f3" stroke-width="2.5"/>
+  <line x1="85" y1="95" x2="135" y2="95" stroke="#2196f3" stroke-width="2.5"/>
+  <line x1="85" y1="105" x2="125" y2="105" stroke="#2196f3" stroke-width="2"/>
+  <line x1="85" y1="115" x2="130" y2="115" stroke="#2196f3" stroke-width="2"/>
+
+  <!-- Icon indicator on front file -->
+  <circle cx="95" cy="55" r="3" fill="#2196f3"/>
+  <circle cx="105" cy="55" r="3" fill="#2196f3"/>
+  <circle cx="115" cy="55" r="3" fill="#2196f3"/>
+</svg>

@@ -12,18 +12,18 @@ type FeatureItem = {
 const FeatureList: FeatureItem[] = [
   {
     title: 'High Performance',
-    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    Svg: require('@site/static/img/icon-performance.svg').default,
     description: (
       <>
         Built with Rust for blazing-fast geospatial data conversions.
-        5-10x faster than traditional tools through vectorized execution
-        powered by Apache DataFusion and Apache Arrow.
+        Leverages vectorized execution powered by Apache DataFusion
+        and Apache Arrow for optimal throughput.
       </>
     ),
   },
   {
     title: 'Simple to Use',
-    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    Svg: require('@site/static/img/icon-simple.svg').default,
     description: (
       <>
         Download, extract, and start converting. No complex setup required.
@@ -33,13 +33,13 @@ const FeatureList: FeatureItem[] = [
     ),
   },
   {
-    title: '68+ Format Drivers',
-    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    title: 'Multiple Format Support',
+    Svg: require('@site/static/img/icon-formats.svg').default,
     description: (
       <>
-        Support for all major geospatial formats including GeoJSON, CSV,
-        Shapefile, GeoPackage, and more. Built on GDAL&apos;s proven
-        driver architecture with modern Rust performance.
+        Support for major geospatial formats including GeoJSON, GeoParquet,
+        CSV with WKT geometries, and more. Built on proven standards with
+        modern Rust performance.
       </>
     ),
   },
