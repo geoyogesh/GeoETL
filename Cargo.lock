@@ -923,7 +923,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion-arrow"
-version = "0.4.1"
+version = "0.4.2"
 
 [[package]]
 name = "datafusion-catalog"
@@ -1012,7 +1012,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion-csv"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "arrow",
@@ -1225,7 +1225,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion-flatgeobuf"
-version = "0.4.1"
+version = "0.4.2"
 
 [[package]]
 name = "datafusion-functions"
@@ -1358,7 +1358,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion-geojson"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "arrow-array",
@@ -1391,15 +1391,15 @@ dependencies = [
 
 [[package]]
 name = "datafusion-geojsonseq"
-version = "0.4.1"
+version = "0.4.2"
 
 [[package]]
 name = "datafusion-geopackage"
-version = "0.4.1"
+version = "0.4.2"
 
 [[package]]
 name = "datafusion-geoparquet"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "arrow-array",
@@ -1459,7 +1459,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion-osm"
-version = "0.4.1"
+version = "0.4.2"
 
 [[package]]
 name = "datafusion-physical-expr"
@@ -1608,11 +1608,11 @@ dependencies = [
 
 [[package]]
 name = "datafusion-shapefile"
-version = "0.4.1"
+version = "0.4.2"
 
 [[package]]
 name = "datafusion-shared"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "datafusion-common",
 ]
@@ -1957,7 +1957,7 @@ dependencies = [
 
 [[package]]
 name = "geoetl-cli"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1976,7 +1976,7 @@ dependencies = [
 
 [[package]]
 name = "geoetl-core"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "arrow-schema",
@@ -1996,7 +1996,7 @@ dependencies = [
 
 [[package]]
 name = "geoetl-core-common"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "arrow-schema",
@@ -2006,7 +2006,7 @@ dependencies = [
 
 [[package]]
 name = "geoetl-operations"
-version = "0.4.1"
+version = "0.4.2"
 
 [[package]]
 name = "geographiclib-rs"
