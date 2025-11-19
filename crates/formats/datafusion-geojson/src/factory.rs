@@ -127,11 +127,11 @@ impl FormatFactory for GeoJsonFormatFactory {
 
     fn infer_table_name(&self, input_path: &str) -> Option<String> {
         // GeoJSON-specific table name inference
-        // Extract filename without extension
+        // Extract filename without extension and sanitize for SQL
         std::path::Path::new(input_path)
             .file_stem()
             .and_then(|s| s.to_str())
-            .map(std::string::ToString::to_string)
+            .map(datafusion_shared::sanitize_table_name)
     }
 }
 

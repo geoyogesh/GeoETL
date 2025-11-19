@@ -184,6 +184,65 @@ impl From<SpatialFormatReadError> for DataFusionError {
 /// Result type alias that uses [`SpatialFormatReadError`].
 pub type SpatialFormatResult<T> = Result<T, SpatialFormatReadError>;
 
+/// Sanitizes a filename to be used as a SQL table name.
+///
+/// This function takes a filename (typically extracted from a file path) and converts it
+/// into a valid SQL identifier by:
+/// 1. Replacing all non-alphanumeric characters (except underscores) with underscores
+/// 2. Collapsing consecutive underscores into a single underscore
+///
+/// This ensures the resulting table name is SQL-safe and won't be misinterpreted
+/// by `DataFusion`'s query parser (e.g., hyphens won't be treated as subtraction operators).
+///
+/// # Arguments
+///
+/// * `filename` - The filename to sanitize
+///
+/// # Returns
+///
+/// A sanitized string that can be safely used as a SQL table name.
+///
+/// # Examples
+///
+/// ```
+/// use datafusion_shared::sanitize_table_name;
+///
+/// assert_eq!(sanitize_table_name("natural-earth_cities"), "natural_earth_cities");
+/// assert_eq!(sanitize_table_name("my--file__name"), "my_file_name");
+/// assert_eq!(sanitize_table_name("file@2024.csv"), "file_2024_csv");
+/// ```
+#[must_use]
+pub fn sanitize_table_name(filename: &str) -> String {
+    // Replace special characters with underscores to make the table name SQL-safe
+    // Only allow alphanumeric characters and underscores
+    let sanitized: String = filename
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+
+    // Replace continuous underscores with a single underscore
+    let mut result = String::new();
+    let mut prev_underscore = false;
+    for c in sanitized.chars() {
+        if c == '_' {
+            if !prev_underscore {
+                result.push(c);
+                prev_underscore = true;
+            }
+        } else {
+            result.push(c);
+            prev_underscore = false;
+        }
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -438,5 +497,45 @@ mod tests {
 
         let df_error: DataFusionError = error.into();
         assert!(matches!(df_error, DataFusionError::External(_)));
+    }
+
+    #[test]
+    fn test_sanitize_table_name_basic() {
+        assert_eq!(sanitize_table_name("simple_name"), "simple_name");
+        assert_eq!(sanitize_table_name("AlphaNumeric123"), "AlphaNumeric123");
+    }
+
+    #[test]
+    fn test_sanitize_table_name_hyphens() {
+        assert_eq!(
+            sanitize_table_name("natural-earth_cities"),
+            "natural_earth_cities"
+        );
+        assert_eq!(sanitize_table_name("my-file-name"), "my_file_name");
+    }
+
+    #[test]
+    fn test_sanitize_table_name_consecutive_special_chars() {
+        assert_eq!(sanitize_table_name("my--file__name"), "my_file_name");
+        assert_eq!(sanitize_table_name("a---b___c"), "a_b_c");
+        assert_eq!(sanitize_table_name("test___data"), "test_data");
+    }
+
+    #[test]
+    fn test_sanitize_table_name_special_characters() {
+        assert_eq!(sanitize_table_name("file@2024.csv"), "file_2024_csv");
+        assert_eq!(sanitize_table_name("data[1].txt"), "data_1_txt");
+        assert_eq!(sanitize_table_name("my file!.dat"), "my_file_dat");
+    }
+
+    #[test]
+    fn test_sanitize_table_name_empty() {
+        assert_eq!(sanitize_table_name(""), "");
+    }
+
+    #[test]
+    fn test_sanitize_table_name_only_special_chars() {
+        assert_eq!(sanitize_table_name("---"), "_");
+        assert_eq!(sanitize_table_name("@#$"), "_");
     }
 }
