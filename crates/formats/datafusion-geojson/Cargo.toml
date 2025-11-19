@@ -30,7 +30,7 @@ geo = "0.31"
 geozero = { workspace = true }
 wkt = "0.14"
 object_store = { workspace = true, features = ["aws", "azure", "gcp", "http"] }
-serde_json = "1.0"
+serde_json.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 url = { workspace = true }
 geoetl-core-common = { path = "../../geoetl-core-common" }
@@ -39,4 +39,4 @@ anyhow = { workspace = true }
 [dev-dependencies]
 geo-traits = { workspace = true }
 tempfile = { workspace = true }
-serde_json = "1.0"
+serde_json.workspace = true

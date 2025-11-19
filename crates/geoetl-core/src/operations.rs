@@ -507,6 +507,12 @@ async fn build_dataset_info_from_context(
     let schema = table.schema();
     let arrow_schema = schema.as_arrow();
 
+    // Try to parse GeoParquet metadata from schema-level metadata
+    let geo_metadata_json = arrow_schema
+        .metadata()
+        .get("geo")
+        .and_then(|geo_json| serde_json::from_str::<serde_json::Value>(geo_json).ok());
+
     // Find and collect geometry column information
     let mut geometry_column_info = Vec::new();
     for field in arrow_schema.fields() {
@@ -514,11 +520,31 @@ async fn build_dataset_info_from_context(
         if metadata.contains_key("ARROW:extension:name") {
             let extension_name = metadata.get("ARROW:extension:name").unwrap();
             if extension_name.starts_with("geoarrow") {
+                // First try to get CRS from field-level metadata (GeoArrow style)
+                let mut crs = metadata.get("ARROW:extension:metadata").cloned();
+
+                // If not found and we have GeoParquet metadata, try to get CRS from there
+                if crs.is_none()
+                    && let Some(ref geo_meta) = geo_metadata_json
+                    && let Some(columns) = geo_meta.get("columns")
+                    && let Some(column_meta) = columns.get(field.name())
+                {
+                    if let Some(crs_value) = column_meta.get("crs") {
+                        // If crs is null in the JSON, skip it (means no CRS assigned)
+                        if !crs_value.is_null() {
+                            crs = Some(crs_value.to_string());
+                        }
+                    } else {
+                        // No CRS field means default WGS84 per GeoParquet spec
+                        crs = Some("WGS84".to_string());
+                    }
+                }
+
                 geometry_column_info.push(GeometryColumnInfo {
                     name: field.name().to_string(),
                     data_type: format!("{:?}", field.data_type()),
                     extension: Some(extension_name.clone()),
-                    crs: metadata.get("ARROW:extension:metadata").cloned(),
+                    crs,
                 });
             }
         }
