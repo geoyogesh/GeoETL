@@ -6,6 +6,12 @@ license.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+# Static linking for GEOS (portable binaries, used in CI)
+# Build with: CMAKE_POLICY_VERSION_MINIMUM=3.5 cargo build --release --features geos-static
+geos-static = ["geoetl-core/geos-static"]
+
 [dependencies]
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }

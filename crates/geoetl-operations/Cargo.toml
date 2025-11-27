@@ -8,6 +8,12 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+# Static linking for GEOS (portable binaries, used in CI)
+# Requires CMAKE_POLICY_VERSION_MINIMUM=3.5 environment variable
+geos-static = ["geos/static"]
+
 [dependencies]
 datafusion = { workspace = true }
 geoarrow = { workspace = true }

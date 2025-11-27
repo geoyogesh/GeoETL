@@ -13,6 +13,8 @@ executors:
     environment:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
+      # Required for static GEOS linking with older CMake compatibility
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
 
   rust-musl-executor:
     docker:
@@ -21,6 +23,8 @@ executors:
     environment:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
+      # Required for static GEOS linking with older CMake compatibility
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
 
 jobs:
   build-linux-x86_64-gnu:
@@ -36,8 +40,9 @@ jobs:
             - cargo-cache-v2-{{ checksum "Cargo.lock" }}
             - cargo-cache-v2-
       - run:
-          name: Install sccache
+          name: Install sccache and GEOS build dependencies
           command: |
+            apt-get update && apt-get install -y cmake clang
             if ! command -v sccache &> /dev/null; then
               cargo install sccache --no-default-features
             fi
@@ -48,7 +53,7 @@ jobs:
           command: rustup target add x86_64-unknown-linux-gnu
       - run:
           name: Build for x86_64-unknown-linux-gnu
-          command: cargo build --workspace --all-targets --release --target x86_64-unknown-linux-gnu
+          command: cargo build --workspace --all-targets --release --target x86_64-unknown-linux-gnu --features geos-static
           no_output_timeout: 30m
       - save_cache:
           key: cargo-cache-v2-{{ checksum "Cargo.lock" }}
@@ -79,13 +84,15 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Rust and sccache
+          name: Install Rust, sccache, and GEOS build dependencies
           command: |
+            sudo apt-get update && sudo apt-get install -y cmake clang
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             echo 'source $HOME/.cargo/env' >> $BASH_ENV
             source $BASH_ENV
             cargo install sccache
             echo 'export RUSTC_WRAPPER=$(which sccache)' >> $BASH_ENV
+            echo 'export CMAKE_POLICY_VERSION_MINIMUM=3.5' >> $BASH_ENV
             source $BASH_ENV
       - restore_cache:
           keys:
@@ -93,7 +100,7 @@ jobs:
             - cargo-cache-v2-
       - run:
           name: Build for aarch64-unknown-linux-gnu
-          command: cargo build --workspace --all-targets --release --target aarch64-unknown-linux-gnu
+          command: cargo build --workspace --all-targets --release --target aarch64-unknown-linux-gnu --features geos-static
           no_output_timeout: 30m
       - save_cache:
           key: cargo-cache-v2-{{ checksum "Cargo.lock" }}
@@ -123,10 +130,10 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install build dependencies
+          name: Install build dependencies and GEOS build tools
           command: |
             apk update
-            apk add --no-cache sccache musl-dev
+            apk add --no-cache sccache musl-dev cmake clang clang-dev make g++
       - restore_cache:
           keys:
             - cargo-cache-v2-musl-{{ checksum "Cargo.lock" }}
@@ -135,7 +142,7 @@ jobs:
           name: Build for x86_64-unknown-linux-musl
           environment:
             RUSTC_WRAPPER: /usr/bin/sccache
-          command: cargo build --workspace --all-targets --release --target x86_64-unknown-linux-musl
+          command: cargo build --workspace --all-targets --release --target x86_64-unknown-linux-musl --features geos-static
           no_output_timeout: 30m
       - save_cache:
           key: cargo-cache-v2-musl-{{ checksum "Cargo.lock" }}
@@ -169,13 +176,15 @@ jobs:
             - cargo-cache-v2-macos-{{ checksum "Cargo.lock" }}
             - cargo-cache-v2-macos-
       - run:
-          name: Install Rust
+          name: Install Rust and CMake
           command: |
+            brew install cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             echo 'source $HOME/.cargo/env' >> $BASH_ENV
+            echo 'export CMAKE_POLICY_VERSION_MINIMUM=3.5' >> $BASH_ENV
       - run:
           name: Build for aarch64-apple-darwin
-          command: cargo build --workspace --all-targets --release --target aarch64-apple-darwin
+          command: cargo build --workspace --all-targets --release --target aarch64-apple-darwin --features geos-static
           no_output_timeout: 30m
       - save_cache:
           key: cargo-cache-v2-macos-{{ checksum "Cargo.lock" }}
@@ -202,6 +211,7 @@ jobs:
     environment:
       SCCACHE_DIR: 'C:\Users\circleci\AppData\Local\sccache'
       CARGO_BUILD_JOBS: '4'
+      CMAKE_POLICY_VERSION_MINIMUM: '3.5'
     steps:
       - checkout
       - restore_cache:
@@ -209,8 +219,9 @@ jobs:
             - cargo-cache-v2-windows-{{ checksum "Cargo.lock" }}
             - cargo-cache-v2-windows-
       - run:
-          name: Install Rust and sccache
+          name: Install Rust, sccache, and CMake
           command: |
+            choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' -y
             Invoke-WebRequest -Uri https://win.rustup.rs/ -OutFile rustup-init.exe
             .\rustup-init.exe -y --default-toolchain stable --profile minimal
             Add-Content -Path $Profile.CurrentUserAllHosts -Value '$env:PATH = "C:\Users\circleci\.cargo\bin;$env:PATH"'
@@ -223,7 +234,7 @@ jobs:
           name: Build for x86_64-pc-windows-msvc
           environment:
             RUSTC_WRAPPER: 'C:\Users\circleci\.cargo\bin\sccache.exe'
-          command: cargo build --workspace --all-targets --release --target x86_64-pc-windows-msvc
+          command: cargo build --workspace --all-targets --release --target x86_64-pc-windows-msvc --features geos-static
           no_output_timeout: 30m
           shell: powershell.exe
       - save_cache:

@@ -6,6 +6,11 @@ license.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+# Static linking for GEOS (portable binaries, used in CI)
+geos-static = ["geoetl-operations/geos-static"]
+
 [dependencies]
 anyhow.workspace = true
 log.workspace = true
