@@ -55,6 +55,10 @@ async fn initialize_context(
 
     let ctx = SessionContext::new_with_config(config);
 
+    // Register spatial UDFs (ST_Distance, etc.)
+    geoetl_operations::register_spatial_udfs(&ctx)
+        .map_err(|e| GeoEtlError::from(anyhow::anyhow!("Failed to register spatial UDFs: {e}")))?;
+
     // Use custom table name if provided, otherwise infer from filename using the factory
     let table_name = if let Some(custom_name) = table_name_override {
         info!("Using custom table name '{custom_name}'");

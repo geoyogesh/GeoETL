@@ -1,15 +1,8 @@
-#[must_use]
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! `GeoETL` Operations - Spatial operations and UDFs for `DataFusion`
+//!
+//! This crate provides spatial operations (like `ST_Distance`, `ST_Buffer`, etc.)
+//! as User Defined Functions (UDFs) that can be used in `DataFusion` SQL queries.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod spatial_udf;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use spatial_udf::{create_st_distance_udf, register_spatial_udfs};
