@@ -9,3 +9,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+datafusion = { workspace = true }
+geoarrow = { workspace = true }
+geoarrow-array = { workspace = true }
+geoarrow-cast = { workspace = true }
+arrow-schema = { workspace = true }
+geos = { workspace = true }
+anyhow = { workspace = true }

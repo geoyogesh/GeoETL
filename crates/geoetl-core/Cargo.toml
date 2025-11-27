@@ -17,6 +17,7 @@ geoarrow-array.workspace = true
 arrow-schema.workspace = true
 serde_json.workspace = true
 geoetl-core-common = { path = "../geoetl-core-common" }
+geoetl-operations = { path = "../geoetl-operations" }
 datafusion-csv = { path = "../formats/datafusion-csv" }
 datafusion-geojson = { path = "../formats/datafusion-geojson" }
 datafusion-geoparquet = { path = "../formats/datafusion-geoparquet" }

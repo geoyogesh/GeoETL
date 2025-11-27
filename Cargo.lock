@@ -568,6 +568,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "c_vec"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdd7a427adc0135366d99db65b36dae9237130997e560ed61118041fb72be6e8"
+
+[[package]]
 name = "cc"
 version = "1.2.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1707,7 +1713,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1925,6 +1931,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "geoarrow"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b70b2f4d8f6f2730525296edfd9dac36c961be5c272671d46f23b7e5b0d33b9"
+dependencies = [
+ "geoarrow-array",
+ "geoarrow-schema",
+]
+
+[[package]]
 name = "geoarrow-array"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1939,6 +1955,19 @@ dependencies = [
  "geozero",
  "num-traits",
  "wkb",
+ "wkt 0.14.0",
+]
+
+[[package]]
+name = "geoarrow-cast"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2829f8a27e25c4f6c195dbb9efd65bc398b58788dfcc50a66370239cd6c0669"
+dependencies = [
+ "arrow-schema",
+ "geo-traits",
+ "geoarrow-array",
+ "geoarrow-schema",
  "wkt 0.14.0",
 ]
 
@@ -1987,6 +2016,7 @@ dependencies = [
  "geoarrow-array",
  "geoarrow-schema",
  "geoetl-core-common",
+ "geoetl-operations",
  "log",
  "serde_json",
  "tempfile",
@@ -2007,6 +2037,15 @@ dependencies = [
 [[package]]
 name = "geoetl-operations"
 version = "0.4.2"
+dependencies = [
+ "anyhow",
+ "arrow-schema",
+ "datafusion",
+ "geoarrow",
+ "geoarrow-array",
+ "geoarrow-cast",
+ "geos",
+]
 
 [[package]]
 name = "geographiclib-rs"
@@ -2052,6 +2091,29 @@ dependencies = [
  "serde_json",
  "serde_with",
  "wkt 0.14.0",
+]
+
+[[package]]
+name = "geos"
+version = "10.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0473e63acafe4109b096ab8c1e6b8151e1cb25397811525779a9bc7187382a7b"
+dependencies = [
+ "c_vec",
+ "geos-sys",
+ "libc",
+ "num",
+]
+
+[[package]]
+name = "geos-sys"
+version = "2.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dc873d24aefc72aa94c3c1c251afb82beb7be5926002746c0e1f585fef9854c"
+dependencies = [
+ "libc",
+ "pkg-config",
+ "semver",
 ]
 
 [[package]]
@@ -2768,7 +2830,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3244,7 +3306,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3487,7 +3549,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3963,7 +4025,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4529,7 +4591,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
