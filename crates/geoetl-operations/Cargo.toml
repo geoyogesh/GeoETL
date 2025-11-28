@@ -17,8 +17,9 @@ geos-static = ["geos/static"]
 [dependencies]
 datafusion = { workspace = true }
 geoarrow = { workspace = true }
-geoarrow-array = { workspace = true }
+geoarrow-array = { workspace = true, features = ["geozero"] }
 geoarrow-cast = { workspace = true }
 arrow-schema = { workspace = true }
 geos = { workspace = true }
+geozero = { workspace = true }
 anyhow = { workspace = true }

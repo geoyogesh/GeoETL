@@ -1,32 +1,50 @@
-//! `ST_Distance` implementation using GEOS
+//! `ST_Distance` implementation using `GEOS` via `GeoArrow` arrays
+//!
+//! This function computes the minimum distance between two geometries.
+//! It accepts `GeoArrow` geometry types:
+//! - `geoarrow.point` (`FixedSizeList<Float64, 2>`)
+//! - `geoarrow.wkb` (Binary)
+//! - `geoarrow.geometry` (Union) - mixed geometry types from `GeoJSON`
+//!
+//! All distance calculations use `GEOS` for consistency and correctness.
 
-use anyhow::{Result, anyhow};
+use super::geoarrow_types::{
+    GEOARROW_GEOMETRY, GEOARROW_POINT, GEOARROW_WKB, get_geoarrow_type, is_geoarrow_geometry,
+};
 use datafusion::arrow::array::{
-    Array, ArrayRef, AsArray, BinaryArray, FixedSizeListArray, Float64Array, StringArray,
-    StructArray, UnionArray,
+    Array, ArrayRef, BinaryArray, FixedSizeListArray, Float64Array, Float64Builder,
 };
 use datafusion::arrow::datatypes::DataType;
 use datafusion::error::DataFusionError;
-use datafusion::logical_expr::{ScalarFunctionArgs, ScalarUDF, Volatility};
+use datafusion::logical_expr::{ScalarFunctionArgs, ScalarUDF, TypeSignature, Volatility};
 use datafusion::physical_plan::ColumnarValue;
+use geoarrow_array::{GeoArrowArray, GeoArrowArrayAccessor};
 use geos::{CoordSeq, Geom, Geometry as GeosGeometry};
+use geozero::{CoordDimensions, ToWkb};
 use std::sync::Arc;
 
 /// Create the `ST_Distance` User Defined Function
 ///
 /// `ST_Distance` returns the minimum distance between two geometries.
+/// Accepts `GeoArrow` geometry types and uses `GEOS` for all calculations.
 ///
 /// # SQL Usage
 ///
 /// ```sql
-/// SELECT ST_Distance(geometry_column1, geometry_column2) FROM table;
-/// SELECT * FROM table WHERE ST_Distance(geometry, POINT(0, 0)) < 1000;
+/// -- Point-to-point distance
+/// SELECT ST_Distance(ST_Point(0, 0), ST_Point(3, 4));
+///
+/// -- Distance between geometries from WKT
+/// SELECT ST_Distance(ST_GeomFromText(wkt1), ST_GeomFromText(wkt2)) FROM table;
+///
+/// -- Distance from geometry column to fixed point
+/// SELECT ST_Distance(geometry, ST_Point(0, 0)) FROM table;
 /// ```
 ///
 /// # Arguments
 ///
-/// - `geometry1`: First geometry (as WKT string, WKB binary, or `GeoArrow` struct)
-/// - `geometry2`: Second geometry (as WKT string, WKB binary, or `GeoArrow` struct)
+/// - `geometry1`: First geometry (`GeoArrow` Point or WKB)
+/// - `geometry2`: Second geometry (`GeoArrow` Point or WKB)
 ///
 /// # Returns
 ///
@@ -43,17 +61,16 @@ struct StDistanceUDF {
 
 impl StDistanceUDF {
     fn new() -> Self {
-        use datafusion::logical_expr::TypeSignature;
+        use super::geoarrow_types::point_data_type;
+
         Self {
             signature: datafusion::logical_expr::Signature::one_of(
                 vec![
-                    // Accept Binary (WKB) geometries
+                    // Point-to-Point
+                    TypeSignature::Exact(vec![point_data_type(), point_data_type()]),
+                    // WKB-to-WKB
                     TypeSignature::Exact(vec![DataType::Binary, DataType::Binary]),
-                    // Accept String (WKT) geometries
-                    TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
-                    // Accept LargeString (WKT) geometries
-                    TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::LargeUtf8]),
-                    // Accept any type (for GeoArrow geometries)
+                    // Mixed types - use Any to allow combinations
                     TypeSignature::Any(2),
                 ],
                 Volatility::Immutable,
@@ -62,12 +79,12 @@ impl StDistanceUDF {
     }
 }
 
-#[allow(clippy::unnecessary_literal_bound)]
 impl datafusion::logical_expr::ScalarUDFImpl for StDistanceUDF {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
+    #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
         "st_distance"
     }
@@ -84,362 +101,316 @@ impl datafusion::logical_expr::ScalarUDFImpl for StDistanceUDF {
         &self,
         args: ScalarFunctionArgs,
     ) -> datafusion::error::Result<ColumnarValue> {
-        // Extract the two geometry arrays from args
         let geom1_array = match &args.args[0] {
             ColumnarValue::Array(array) => array.clone(),
-            ColumnarValue::Scalar(_) => {
-                return Err(DataFusionError::Execution(
-                    "ST_Distance does not support scalar geometry arguments yet".to_string(),
-                ));
-            },
+            ColumnarValue::Scalar(scalar) => scalar.to_array()?,
         };
 
         let geom2_array = match &args.args[1] {
             ColumnarValue::Array(array) => array.clone(),
-            ColumnarValue::Scalar(_) => {
-                return Err(DataFusionError::Execution(
-                    "ST_Distance does not support scalar geometry arguments yet".to_string(),
-                ));
-            },
+            ColumnarValue::Scalar(scalar) => scalar.to_array()?,
         };
 
-        // Compute distances
-        let distances = compute_distances(&geom1_array, &geom2_array)
+        // Get geometry types and fields from metadata if available
+        let field1 = args.arg_fields.first().map(std::convert::AsRef::as_ref);
+        let field2 = args.arg_fields.get(1).map(std::convert::AsRef::as_ref);
+        let type1 = field1.and_then(get_geoarrow_type);
+        let type2 = field2.and_then(get_geoarrow_type);
+
+        // Validate inputs are GeoArrow types
+        if let (Some(f1), Some(f2)) = (field1, field2)
+            && (!is_geoarrow_geometry(f1) || !is_geoarrow_geometry(f2))
+            && (!matches!(
+                geom1_array.data_type(),
+                DataType::Binary | DataType::FixedSizeList(_, 2)
+            ) || !matches!(
+                geom2_array.data_type(),
+                DataType::Binary | DataType::FixedSizeList(_, 2)
+            ))
+        {
+            return Err(DataFusionError::Execution(
+                "ST_Distance requires GeoArrow geometry inputs. Use ST_Point, ST_GeomFromText, or ST_GeomFromWKB.".to_string(),
+            ));
+        }
+
+        let distances = compute_distances(&geom1_array, &geom2_array, type1, type2, field1, field2)
             .map_err(|e| DataFusionError::Execution(format!("ST_Distance failed: {e}")))?;
 
         Ok(ColumnarValue::Array(Arc::new(distances)))
     }
 }
 
-/// Compute distances between two arrays of geometries
-/// Handles WKT (String), WKB (Binary) and `GeoArrow` (Struct) geometry formats
-#[allow(clippy::too_many_lines)]
-fn compute_distances(arr1: &ArrayRef, arr2: &ArrayRef) -> Result<Float64Array> {
+/// Compute distances between two geometry arrays using `GEOS`
+fn compute_distances(
+    arr1: &ArrayRef,
+    arr2: &ArrayRef,
+    type1: Option<&str>,
+    type2: Option<&str>,
+    field1: Option<&arrow_schema::Field>,
+    field2: Option<&arrow_schema::Field>,
+) -> Result<Float64Array, String> {
     if arr1.len() != arr2.len() {
-        return Err(anyhow!(
-            "Geometry arrays must have the same length: {} vs {}",
+        return Err(format!(
+            "Geometry arrays must have same length: {} vs {}",
             arr1.len(),
             arr2.len()
         ));
     }
 
-    let len = arr1.len();
-    let mut distances = Vec::with_capacity(len);
-
-    // Try to handle as String (WKT) first
-    if let (Some(wkt1_array), Some(wkt2_array)) = (
-        arr1.as_any().downcast_ref::<StringArray>(),
-        arr2.as_any().downcast_ref::<StringArray>(),
-    ) {
-        // Handle WKT format
-        for i in 0..len {
-            if wkt1_array.is_null(i) || wkt2_array.is_null(i) {
-                return Err(anyhow!("NULL geometries are not supported yet"));
-            }
-
-            let wkt1 = wkt1_array.value(i);
-            let wkt2 = wkt2_array.value(i);
-
-            let geos_g1 = GeosGeometry::new_from_wkt(wkt1)
-                .map_err(|e| anyhow!("Failed to parse first WKT geometry '{wkt1}': {e}"))?;
-
-            let geos_g2 = GeosGeometry::new_from_wkt(wkt2)
-                .map_err(|e| anyhow!("Failed to parse second WKT geometry '{wkt2}': {e}"))?;
-
-            let distance = geos_g1
-                .distance(&geos_g2)
-                .map_err(|e| anyhow!("GEOS distance calculation failed: {e}"))?;
-
-            distances.push(distance);
-        }
-    } else if let (Some(wkb1_array), Some(wkb2_array)) = (
-        // Try to handle as Binary (WKB)
-        arr1.as_any().downcast_ref::<BinaryArray>(),
-        arr2.as_any().downcast_ref::<BinaryArray>(),
-    ) {
-        // Handle WKB format
-        for i in 0..len {
-            if wkb1_array.is_null(i) || wkb2_array.is_null(i) {
-                return Err(anyhow!("NULL geometries are not supported yet"));
-            }
-
-            let wkb1 = wkb1_array.value(i);
-            let wkb2 = wkb2_array.value(i);
-
-            let geos_g1 = GeosGeometry::new_from_wkb(wkb1)
-                .map_err(|e| anyhow!("Failed to parse first WKB geometry: {e}"))?;
-
-            let geos_g2 = GeosGeometry::new_from_wkb(wkb2)
-                .map_err(|e| anyhow!("Failed to parse second WKB geometry: {e}"))?;
-
-            let distance = geos_g1
-                .distance(&geos_g2)
-                .map_err(|e| anyhow!("GEOS distance calculation failed: {e}"))?;
-
-            distances.push(distance);
-        }
-    } else if let (Some(struct1_array), Some(struct2_array)) = (
-        // Try to handle as Struct (GeoArrow Point format: {x: f64, y: f64})
-        arr1.as_any().downcast_ref::<StructArray>(),
-        arr2.as_any().downcast_ref::<StructArray>(),
-    ) {
-        // Handle GeoArrow Point struct format directly
-        // GeoArrow points are stored as struct{x: f64, y: f64}
-        let x1_idx = struct1_array.column_by_name("x");
-        let y1_idx = struct1_array.column_by_name("y");
-        let x2_idx = struct2_array.column_by_name("x");
-        let y2_idx = struct2_array.column_by_name("y");
-
-        if let (Some(x1), Some(y1), Some(x2), Some(y2)) = (x1_idx, y1_idx, x2_idx, y2_idx) {
-            // Try to downcast to Float64 arrays
-            let x1_arr = x1.as_primitive_opt::<datafusion::arrow::datatypes::Float64Type>();
-            let y1_arr = y1.as_primitive_opt::<datafusion::arrow::datatypes::Float64Type>();
-            let x2_arr = x2.as_primitive_opt::<datafusion::arrow::datatypes::Float64Type>();
-            let y2_arr = y2.as_primitive_opt::<datafusion::arrow::datatypes::Float64Type>();
-
-            if let (Some(x1_arr), Some(y1_arr), Some(x2_arr), Some(y2_arr)) =
-                (x1_arr, y1_arr, x2_arr, y2_arr)
-            {
-                for i in 0..len {
-                    if x1_arr.is_null(i)
-                        || y1_arr.is_null(i)
-                        || x2_arr.is_null(i)
-                        || y2_arr.is_null(i)
-                    {
-                        return Err(anyhow!("NULL coordinates are not supported yet"));
-                    }
-
-                    let x1_val = x1_arr.value(i);
-                    let y1_val = y1_arr.value(i);
-                    let x2_val = x2_arr.value(i);
-                    let y2_val = y2_arr.value(i);
-
-                    // Create GEOS points directly from coordinates
-                    let coords1 = CoordSeq::new_from_vec(&[[x1_val, y1_val]])
-                        .map_err(|e| anyhow!("Failed to create coordinate sequence: {e}"))?;
-                    let geos_g1 = GeosGeometry::create_point(coords1)
-                        .map_err(|e| anyhow!("Failed to create GEOS point: {e}"))?;
-
-                    let coords2 = CoordSeq::new_from_vec(&[[x2_val, y2_val]])
-                        .map_err(|e| anyhow!("Failed to create coordinate sequence: {e}"))?;
-                    let geos_g2 = GeosGeometry::create_point(coords2)
-                        .map_err(|e| anyhow!("Failed to create GEOS point: {e}"))?;
-
-                    let distance = geos_g1
-                        .distance(&geos_g2)
-                        .map_err(|e| anyhow!("GEOS distance calculation failed: {e}"))?;
-
-                    distances.push(distance);
-                }
-            } else {
-                return Err(anyhow!(
-                    "GeoArrow struct fields are not Float64 type. Got x: {:?}, y: {:?}",
-                    x1.data_type(),
-                    y1.data_type()
-                ));
-            }
-        } else {
-            return Err(anyhow!(
-                "Struct array does not have 'x' and 'y' fields for GeoArrow Point format"
-            ));
-        }
-    } else if let (Some(list1_array), Some(list2_array)) = (
-        // Try to handle as FixedSizeList (GeoArrow interleaved Point format: [x, y] or [x, y, z])
-        arr1.as_any().downcast_ref::<FixedSizeListArray>(),
-        arr2.as_any().downcast_ref::<FixedSizeListArray>(),
-    ) {
-        // Handle GeoArrow Point FixedSizeList format directly
-        // GeoArrow points can be stored as FixedSizeList<Float64, 2> containing [x, y]
-        #[allow(clippy::cast_sign_loss)]
-        let list_size = list1_array.value_length() as usize;
-        if list_size < 2 {
-            return Err(anyhow!(
-                "FixedSizeList must have at least 2 elements for Point geometry"
-            ));
-        }
-
-        // Get the inner values arrays
-        let values1 = list1_array.values();
-        let values2 = list2_array.values();
-
-        let coords1 = values1.as_primitive_opt::<datafusion::arrow::datatypes::Float64Type>();
-        let coords2 = values2.as_primitive_opt::<datafusion::arrow::datatypes::Float64Type>();
-
-        if let (Some(coords1), Some(coords2)) = (coords1, coords2) {
-            for i in 0..len {
-                if list1_array.is_null(i) || list2_array.is_null(i) {
-                    return Err(anyhow!("NULL geometries are not supported yet"));
-                }
-
-                // Get coordinates for point i
-                let offset1 = i * list_size;
-                let offset2 = i * list_size;
-
-                let x1 = coords1.value(offset1);
-                let y1 = coords1.value(offset1 + 1);
-                let x2 = coords2.value(offset2);
-                let y2 = coords2.value(offset2 + 1);
-
-                // Create GEOS points directly from coordinates
-                let coord_seq1 = CoordSeq::new_from_vec(&[[x1, y1]])
-                    .map_err(|e| anyhow!("Failed to create coordinate sequence: {e}"))?;
-                let geos_g1 = GeosGeometry::create_point(coord_seq1)
-                    .map_err(|e| anyhow!("Failed to create GEOS point: {e}"))?;
-
-                let coord_seq2 = CoordSeq::new_from_vec(&[[x2, y2]])
-                    .map_err(|e| anyhow!("Failed to create coordinate sequence: {e}"))?;
-                let geos_g2 = GeosGeometry::create_point(coord_seq2)
-                    .map_err(|e| anyhow!("Failed to create GEOS point: {e}"))?;
-
-                let distance = geos_g1
-                    .distance(&geos_g2)
-                    .map_err(|e| anyhow!("GEOS distance calculation failed: {e}"))?;
-
-                distances.push(distance);
-            }
-        } else {
-            return Err(anyhow!(
-                "FixedSizeList values are not Float64 type. Got: {:?}",
-                values1.data_type()
-            ));
-        }
-    } else if let (Some(union1_array), Some(union2_array)) = (
-        // Try to handle as Union (GeoArrow mixed geometry / GeometryArray format)
-        arr1.as_any().downcast_ref::<UnionArray>(),
-        arr2.as_any().downcast_ref::<UnionArray>(),
-    ) {
-        // Handle GeoArrow Union (mixed geometry) format
-        // Extract geometry from union for each row and compute distance
-        for i in 0..len {
-            let geos_g1 = extract_geometry_from_union(union1_array, i)?;
-            let geos_g2 = extract_geometry_from_union(union2_array, i)?;
-
-            let distance = geos_g1
-                .distance(&geos_g2)
-                .map_err(|e| anyhow!("GEOS distance calculation failed: {e}"))?;
-
-            distances.push(distance);
-        }
-    } else {
-        // Fallback: Handle other GeoArrow formats using geoarrow_array library
-        // This requires proper extension metadata on the arrays
-        // Convert both arrays to WKB first, then use GEOS
-        use geoarrow_array::GeoArrowArray;
-        use geoarrow_array::array::from_arrow_array;
-        use geoarrow_array::cast::to_wkb;
-
-        // Get the fields from the schema for proper conversion
-        let geo1_field = arrow_schema::Field::new("geom", arr1.data_type().clone(), true);
-        let geo2_field = arrow_schema::Field::new("geom", arr2.data_type().clone(), true);
-
-        let geo1_array = from_arrow_array(arr1.as_ref(), &geo1_field)
-            .map_err(|e| anyhow!("Failed to convert first geometry to GeoArrow: {e}"))?;
-
-        let geo2_array = from_arrow_array(arr2.as_ref(), &geo2_field)
-            .map_err(|e| anyhow!("Failed to convert second geometry to GeoArrow: {e}"))?;
-
-        // Convert to WKB (using i32 offset size, which is standard)
-        let wkb1_array: geoarrow_array::array::WkbArray = to_wkb(&geo1_array)
-            .map_err(|e| anyhow!("Failed to convert first GeoArrow to WKB: {e}"))?;
-
-        let wkb2_array: geoarrow_array::array::WkbArray = to_wkb(&geo2_array)
-            .map_err(|e| anyhow!("Failed to convert second GeoArrow to WKB: {e}"))?;
-
-        // The WKB array is a BinaryArray, so we can access raw bytes directly
-
-        let wkb1_binary = wkb1_array.to_array_ref();
-        let wkb2_binary = wkb2_array.to_array_ref();
-
-        let wkb1_data = wkb1_binary
-            .as_any()
-            .downcast_ref::<BinaryArray>()
-            .ok_or_else(|| anyhow!("Failed to downcast WKB array to BinaryArray"))?;
-        let wkb2_data = wkb2_binary
-            .as_any()
-            .downcast_ref::<BinaryArray>()
-            .ok_or_else(|| anyhow!("Failed to downcast WKB array to BinaryArray"))?;
-
-        // Now compute distances using WKB bytes
-        for i in 0..len {
-            let wkb1_bytes = wkb1_data.value(i);
-            let wkb2_bytes = wkb2_data.value(i);
-
-            let geos_g1 = GeosGeometry::new_from_wkb(wkb1_bytes)
-                .map_err(|e| anyhow!("Failed to create GEOS geometry from first GeoArrow: {e}"))?;
-
-            let geos_g2 = GeosGeometry::new_from_wkb(wkb2_bytes)
-                .map_err(|e| anyhow!("Failed to create GEOS geometry from second GeoArrow: {e}"))?;
-
-            let distance = geos_g1
-                .distance(&geos_g2)
-                .map_err(|e| anyhow!("GEOS distance calculation failed: {e}"))?;
-
-            distances.push(distance);
-        }
-    }
-
-    Ok(Float64Array::from(distances))
+    compute_geos_distances(arr1, arr2, type1, type2, field1, field2)
 }
 
-/// Extract a GEOS geometry from a `GeoArrow` Union array at a specific index
-/// `GeoArrow` Union encodes different geometry types with `type_ids`:
-/// - 1: Point (`FixedSizeList`[2] of `Float64`)
-/// - 2: `LineString`, 3: Polygon, 4: `MultiPoint`, etc.
-fn extract_geometry_from_union(union_array: &UnionArray, idx: usize) -> Result<GeosGeometry> {
-    // Get the type_id for this row - indicates which geometry type
-    let type_id = union_array.type_id(idx);
+/// `GEOS`-based distance calculation
+fn compute_geos_distances(
+    arr1: &ArrayRef,
+    arr2: &ArrayRef,
+    type1: Option<&str>,
+    type2: Option<&str>,
+    field1: Option<&arrow_schema::Field>,
+    field2: Option<&arrow_schema::Field>,
+) -> Result<Float64Array, String> {
+    let len = arr1.len();
+    let mut builder = Float64Builder::with_capacity(len);
 
-    // Get the offset into the child array for this row
-    // For dense unions, we need to look at the offsets
-    let offset = union_array.value_offset(idx);
+    for i in 0..len {
+        if arr1.is_null(i) || arr2.is_null(i) {
+            builder.append_null();
+            continue;
+        }
 
-    // Get the child array for this type
-    let child = union_array.child(type_id);
+        let geos1 = array_to_geos(arr1, i, type1, field1)?;
+        let geos2 = array_to_geos(arr2, i, type2, field2)?;
 
-    match type_id {
-        1 => {
-            // Point: FixedSizeList<Float64, 2> containing [x, y]
-            let point_array = child
+        let distance = geos1
+            .distance(&geos2)
+            .map_err(|e| format!("GEOS distance failed at row {i}: {e}"))?;
+
+        builder.append_value(distance);
+    }
+
+    Ok(builder.finish())
+}
+
+/// Convert a single geometry from an array to `GEOS`
+fn array_to_geos(
+    arr: &ArrayRef,
+    idx: usize,
+    geo_type: Option<&str>,
+    field: Option<&arrow_schema::Field>,
+) -> Result<GeosGeometry, String> {
+    match geo_type {
+        Some(GEOARROW_POINT) | None if matches!(arr.data_type(), DataType::FixedSizeList(_, 2)) => {
+            // `GeoArrow` Point -> GEOS
+            let points = arr
                 .as_any()
                 .downcast_ref::<FixedSizeListArray>()
-                .ok_or_else(|| anyhow!("Expected FixedSizeListArray for Point geometry"))?;
+                .ok_or("Expected FixedSizeList for Point")?;
 
-            let values = point_array.values();
-            let coords = values
-                .as_primitive_opt::<datafusion::arrow::datatypes::Float64Type>()
-                .ok_or_else(|| anyhow!("Expected Float64 coordinates for Point"))?;
+            let coords = points
+                .values()
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .ok_or("Expected Float64 coordinates")?;
 
-            #[allow(clippy::cast_sign_loss)]
-            let list_size = point_array.value_length() as usize;
-            let val_offset = offset * list_size;
-
-            let x = coords.value(val_offset);
-            let y = coords.value(val_offset + 1);
+            let offset = idx * 2;
+            let x = coords.value(offset);
+            let y = coords.value(offset + 1);
 
             let coord_seq = CoordSeq::new_from_vec(&[[x, y]])
-                .map_err(|e| anyhow!("Failed to create coordinate sequence: {e}"))?;
+                .map_err(|e| format!("Failed to create CoordSeq: {e}"))?;
+
             GeosGeometry::create_point(coord_seq)
-                .map_err(|e| anyhow!("Failed to create GEOS point: {e}"))
+                .map_err(|e| format!("Failed to create GEOS point: {e}"))
         },
-        2..=7 | 11..=17 | 21..=27 | 31..=37 => {
-            // Complex geometry types (LineString, Polygon, etc.)
-            // For these, convert via WKB using geoarrow_array
-            // This is a fallback - ideally we'd handle each type specifically
-            Err(anyhow!(
-                "Complex geometry type (type_id={type_id}) in Union not yet supported. Only Point geometries are currently supported in ST_Distance for mixed geometry arrays."
-            ))
+        Some(GEOARROW_WKB) | None if matches!(arr.data_type(), DataType::Binary) => {
+            // `GeoArrow` WKB -> GEOS
+            let wkb_array = arr
+                .as_any()
+                .downcast_ref::<BinaryArray>()
+                .ok_or("Expected Binary for WKB")?;
+
+            let wkb = wkb_array.value(idx);
+            GeosGeometry::new_from_wkb(wkb).map_err(|e| format!("Invalid WKB at row {idx}: {e}"))
         },
-        _ => Err(anyhow!("Unknown geometry type_id in Union: {type_id}")),
+        Some(GEOARROW_GEOMETRY) => {
+            // `GeoArrow` mixed geometry (Union) -> GEOS via WKB
+            geometry_array_to_geos(arr, idx, field)
+        },
+        Some(other) => Err(format!("Unsupported geometry type: {other}")),
+        None => Err(format!(
+            "Unknown geometry format: {:?}. Use ST_Point, ST_GeomFromText, or ST_GeomFromWKB.",
+            arr.data_type()
+        )),
     }
+}
+
+/// Convert a `GeoArrow` geometry array element to `GEOS` via WKB
+fn geometry_array_to_geos(
+    arr: &ArrayRef,
+    idx: usize,
+    field: Option<&arrow_schema::Field>,
+) -> Result<GeosGeometry, String> {
+    use geoarrow_array::array::GeometryArray;
+
+    // Need field metadata to construct GeometryArray
+    let field = field.ok_or("Field metadata required for geoarrow.geometry type")?;
+
+    let geom_arr = GeometryArray::try_from((arr.as_ref(), field))
+        .map_err(|e| format!("Failed to convert to GeometryArray: {e}"))?;
+
+    if geom_arr.is_null(idx) {
+        return Err(format!("Null geometry at row {idx}"));
+    }
+
+    // Get geometry and convert to WKB
+    let geom = geom_arr
+        .value(idx)
+        .map_err(|e| format!("Failed to get geometry at row {idx}: {e}"))?;
+
+    let wkb_bytes = geom
+        .to_wkb(CoordDimensions::xy())
+        .map_err(|e| format!("Failed to convert geometry to WKB at row {idx}: {e}"))?;
+
+    GeosGeometry::new_from_wkb(&wkb_bytes).map_err(|e| format!("Invalid WKB at row {idx}: {e}"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use datafusion::arrow::array::{BinaryArray, Float64Array};
+
+    /// Create a `GeoArrow` Point array from coordinate pairs
+    fn create_point_array(coords: &[(f64, f64)]) -> ArrayRef {
+        let len = coords.len();
+        let mut values = Vec::with_capacity(len * 2);
+        for (x, y) in coords {
+            values.push(*x);
+            values.push(*y);
+        }
+
+        let coords_array = Float64Array::from(values);
+        let field = Arc::new(arrow_schema::Field::new("xy", DataType::Float64, false));
+        let points = FixedSizeListArray::new(field, 2, Arc::new(coords_array), None);
+
+        Arc::new(points)
+    }
+
+    fn point_to_wkb(x: f64, y: f64) -> Vec<u8> {
+        let wkt = format!("POINT({x} {y})");
+        let geom = GeosGeometry::new_from_wkt(&wkt).unwrap();
+        geom.to_wkb().unwrap().into()
+    }
 
     #[test]
     fn test_st_distance_udf_creation() {
         let udf = create_st_distance_udf();
         assert_eq!(udf.name(), "st_distance");
+    }
+
+    #[test]
+    fn test_point_to_point_distance() {
+        let points1 = create_point_array(&[(0.0, 0.0), (0.0, 0.0), (1.0, 1.0)]);
+        let points2 = create_point_array(&[(3.0, 4.0), (1.0, 0.0), (4.0, 5.0)]);
+
+        let result = compute_geos_distances(
+            &points1,
+            &points2,
+            Some(GEOARROW_POINT),
+            Some(GEOARROW_POINT),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(result.len(), 3);
+        // (0,0) to (3,4) = 5
+        assert!((result.value(0) - 5.0).abs() < 1e-10);
+        // (0,0) to (1,0) = 1
+        assert!((result.value(1) - 1.0).abs() < 1e-10);
+        // (1,1) to (4,5) = 5
+        assert!((result.value(2) - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_wkb_distance() {
+        let wkb1 = point_to_wkb(0.0, 0.0);
+        let wkb2 = point_to_wkb(3.0, 4.0);
+
+        let arr1: ArrayRef = Arc::new(BinaryArray::from(vec![wkb1.as_slice()]));
+        let arr2: ArrayRef = Arc::new(BinaryArray::from(vec![wkb2.as_slice()]));
+
+        let result = compute_geos_distances(
+            &arr1,
+            &arr2,
+            Some(GEOARROW_WKB),
+            Some(GEOARROW_WKB),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert!((result.value(0) - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_mixed_point_wkb_distance() {
+        let points = create_point_array(&[(0.0, 0.0)]);
+        let wkb = point_to_wkb(3.0, 4.0);
+        let wkb_arr: ArrayRef = Arc::new(BinaryArray::from(vec![wkb.as_slice()]));
+
+        let result = compute_geos_distances(
+            &points,
+            &wkb_arr,
+            Some(GEOARROW_POINT),
+            Some(GEOARROW_WKB),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert!((result.value(0) - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_null_handling() {
+        // Create arrays with nulls
+        let values1 = Float64Array::from(vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let values2 = Float64Array::from(vec![1.0, 1.0, 2.0, 2.0, 3.0, 3.0]);
+
+        let field = Arc::new(arrow_schema::Field::new("xy", DataType::Float64, false));
+
+        // Create null buffer: [valid, null, valid]
+        let null_buffer1 = datafusion::arrow::buffer::NullBuffer::from(vec![true, false, true]);
+        let null_buffer2 = datafusion::arrow::buffer::NullBuffer::from(vec![true, true, false]);
+
+        let points1: ArrayRef = Arc::new(FixedSizeListArray::new(
+            field.clone(),
+            2,
+            Arc::new(values1),
+            Some(null_buffer1),
+        ));
+        let points2: ArrayRef = Arc::new(FixedSizeListArray::new(
+            field,
+            2,
+            Arc::new(values2),
+            Some(null_buffer2),
+        ));
+
+        let result = compute_geos_distances(
+            &points1,
+            &points2,
+            Some(GEOARROW_POINT),
+            Some(GEOARROW_POINT),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(result.len(), 3);
+        assert!(!result.is_null(0)); // Both valid
+        assert!(result.is_null(1)); // First null
+        assert!(result.is_null(2)); // Second null
     }
 }

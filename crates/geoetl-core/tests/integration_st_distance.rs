@@ -205,25 +205,34 @@ async fn test_st_distance_cross_product() {
     geoetl_core::init::initialize();
 
     let temp_dir = TempDir::new().unwrap();
-    let input_path = temp_dir.path().join("points.csv");
+    let input_path = temp_dir.path().join("points.geojson");
     let output_path = temp_dir.path().join("distance_matrix.csv");
 
-    // Create input data with just 3 points for simpler test
+    // Create input GeoJSON with 3 points for cross-product distance test
     let mut file = File::create(&input_path).unwrap();
-    writeln!(file, "id,name,wkt").unwrap();
-    writeln!(file, "1,A,\"POINT(0 0)\"").unwrap();
-    writeln!(file, "2,B,\"POINT(3 4)\"").unwrap();
-    writeln!(file, "3,C,\"POINT(1 0)\"").unwrap();
+    writeln!(
+        file,
+        r#"{{
+  "type": "FeatureCollection",
+  "features": [
+    {{"type": "Feature", "geometry": {{"type": "Point", "coordinates": [0.0, 0.0]}}, "properties": {{"id": 1, "name": "A"}}}},
+    {{"type": "Feature", "geometry": {{"type": "Point", "coordinates": [3.0, 4.0]}}, "properties": {{"id": 2, "name": "B"}}}},
+    {{"type": "Feature", "geometry": {{"type": "Point", "coordinates": [1.0, 0.0]}}, "properties": {{"id": 3, "name": "C"}}}}
+  ]
+}}"#
+    )
+    .unwrap();
 
     // Get drivers
+    let geojson_driver = find_driver("GeoJSON").expect("GeoJSON driver should exist");
     let csv_driver = find_driver("CSV").expect("CSV driver should exist");
 
-    // Calculate distances between all pairs of points
+    // Calculate distances between all pairs of points using cross product
     let sql_query = "
         SELECT
             p1.name as from_point,
             p2.name as to_point,
-            ST_Distance(p1.wkt, p2.wkt) as distance
+            ST_Distance(p1.geometry, p2.geometry) as distance
         FROM points p1, points p2
         WHERE p1.id < p2.id
         ORDER BY p1.id, p2.id
@@ -233,10 +242,10 @@ async fn test_st_distance_cross_product() {
     let result = convert(
         input_path.to_str().unwrap(),
         output_path.to_str().unwrap(),
+        &geojson_driver,
         &csv_driver,
-        &csv_driver,
-        "wkt",
-        Some("point"),
+        "geometry",
+        None,
         Some(sql_query),
         Some("points"),
         None,
