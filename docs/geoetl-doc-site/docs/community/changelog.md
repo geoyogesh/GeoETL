@@ -11,6 +11,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-11-28
+
+### Added
+
+- **Spatial UDFs for SQL Queries** ([#5abd25d](https://github.com/geoyogesh/geoetl/commit/5abd25d), [#1545ef1](https://github.com/geoyogesh/geoetl/commit/1545ef1))
+  - **ST_Distance**: Calculate minimum distance between geometries using GEOS
+    - Supports WKT strings, WKB binary, and GeoArrow native types
+    - Optimized point-to-point distance using direct Euclidean calculation
+    - Works with mixed geometry types from GeoJSON (Union arrays)
+  - **ST_Point / ST_MakePoint**: Create point geometry from X, Y coordinates
+  - **ST_GeomFromText**: Parse WKT strings to GeoArrow WKB format
+  - **ST_GeomFromWKB**: Validate and tag WKB binary as GeoArrow geometry
+
+- **GeoArrow Native Type Support** ([#5abd25d](https://github.com/geoyogesh/geoetl/commit/5abd25d))
+  - New `geoarrow_types.rs` module with extension type utilities
+  - Support for GeoArrow Struct (Point with x/y fields)
+  - Support for GeoArrow FixedSizeList (interleaved coordinates)
+  - Proper null value propagation across all geometry operations
+
+- **Static GEOS Linking** ([#855abb5](https://github.com/geoyogesh/geoetl/commit/855abb5))
+  - Added `geos-static` feature flag for portable release binaries
+  - Release binaries no longer require GEOS to be installed on target systems
+  - CI uses dynamic linking for speed; releases use static linking for portability
+
+### Changed
+
+- **Architecture Refactoring**
+  - Separated construction functions from spatial operations
+  - Added geozero dependency for geometry format conversion
+  - `geoetl-core` now depends on `geoetl-operations` for spatial UDF registration
+
+---
+
+## [0.4.2] - 2025-11-15
+
+### Fixed
+
+- **GeoParquet CRS Handling** ([#0e287dc](https://github.com/geoyogesh/geoetl/commit/0e287dc))
+  - Extract CRS from GeoParquet schema-level metadata
+  - Properly read coordinate reference system information from all GeoParquet files
+
+- **Table Name Sanitization** ([#343355a](https://github.com/geoyogesh/geoetl/commit/343355a))
+  - Sanitize table names to handle special characters in filenames
+  - Prevents SQL parsing errors when filenames contain spaces or special characters
+
+---
+
+## [0.4.1] - 2025-11-10
+
+### Changed
+
+- **CI Optimization** ([#5b481f0](https://github.com/geoyogesh/geoetl/commit/5b481f0))
+  - Optimized CI pipeline by combining build, test, and coverage jobs
+  - Added e2e test coverage flag
+
+- **Code Refactoring** ([#5ba905c](https://github.com/geoyogesh/geoetl/commit/5ba905c))
+  - Moved table name inference to format-specific implementations
+  - Improved modularity and separation of concerns
+
+- **Documentation Improvements** ([#6dbd918](https://github.com/geoyogesh/geoetl/commit/6dbd918))
+  - Improved website with custom icons and accurate content
+
+### Dependencies
+
+- Enhanced Dependabot configuration with comprehensive monitoring
+
+---
+
 ## [0.4.0] - 2025-11-08
 
 ### Added
