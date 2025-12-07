@@ -13,11 +13,18 @@
 //! - [`create_st_point_udf`]: Create point from X, Y coordinates
 //! - [`create_st_makepoint_udf`]: Alias for `ST_Point`
 //!
-//! ## Spatial Operations
-//! These functions operate on geometries (in WKB format):
+//! ## Spatial Measurements
+//! These functions calculate properties of geometries:
 //! - [`create_st_distance_udf`]: Calculate minimum distance between geometries
 //! - [`create_st_area_udf`]: Calculate area of a geometry
 //! - [`create_st_length_udf`]: Calculate length/perimeter of a geometry
+//!
+//! ## Spatial Operations
+//! These functions transform or combine geometries:
+//! - [`create_st_buffer_udf`]: Create buffer polygon around geometry
+//! - [`create_st_centroid_udf`]: Calculate centroid point of geometry
+//! - [`create_st_union_udf`]: Combine two geometries
+//! - [`create_st_intersection_udf`]: Intersection of two geometries
 //!
 //! # Example Usage
 //!
@@ -37,18 +44,26 @@ use datafusion::prelude::SessionContext;
 
 mod geoarrow_types;
 mod st_area;
+mod st_buffer;
+mod st_centroid;
 mod st_distance;
 mod st_geomfromtext;
 mod st_geomfromwkb;
+mod st_intersection;
 mod st_length;
 mod st_point;
+mod st_union;
 
 pub use st_area::create_st_area_udf;
+pub use st_buffer::create_st_buffer_udf;
+pub use st_centroid::create_st_centroid_udf;
 pub use st_distance::create_st_distance_udf;
 pub use st_geomfromtext::create_st_geomfromtext_udf;
 pub use st_geomfromwkb::create_st_geomfromwkb_udf;
+pub use st_intersection::create_st_intersection_udf;
 pub use st_length::create_st_length_udf;
 pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
+pub use st_union::create_st_union_udf;
 
 /// Register all spatial UDFs with the `DataFusion` `SessionContext`
 ///
@@ -63,10 +78,16 @@ pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
 /// - `ST_Point(x, y)` - Create point from coordinates
 /// - `ST_MakePoint(x, y)` - Alias for `ST_Point`
 ///
-/// ## Spatial Operations
+/// ## Spatial Measurements
 /// - `ST_Distance(geom1, geom2)` - Minimum distance between geometries
 /// - `ST_Area(geom)` - Area of a geometry
 /// - `ST_Length(geom)` - Length/perimeter of a geometry
+///
+/// ## Spatial Operations
+/// - `ST_Buffer(geom, distance)` - Buffer polygon around geometry
+/// - `ST_Centroid(geom)` - Centroid point of geometry
+/// - `ST_Union(geom1, geom2)` - Combine two geometries
+/// - `ST_Intersection(geom1, geom2)` - Intersection of two geometries
 ///
 /// # Errors
 ///
@@ -92,10 +113,16 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(create_st_point_udf());
     ctx.register_udf(create_st_makepoint_udf());
 
-    // Register spatial operations
+    // Register spatial measurements
     ctx.register_udf(create_st_distance_udf());
     ctx.register_udf(create_st_area_udf());
     ctx.register_udf(create_st_length_udf());
+
+    // Register spatial operations
+    ctx.register_udf(create_st_buffer_udf());
+    ctx.register_udf(create_st_centroid_udf());
+    ctx.register_udf(create_st_union_udf());
+    ctx.register_udf(create_st_intersection_udf());
 
     Ok(())
 }
@@ -113,12 +140,22 @@ mod tests {
         // Verify all UDFs are registered
         let state = ctx.state();
         let udfs = state.scalar_functions();
+
+        // Construction functions
         assert!(udfs.contains_key("st_geomfromtext"));
         assert!(udfs.contains_key("st_geomfromwkb"));
         assert!(udfs.contains_key("st_point"));
         assert!(udfs.contains_key("st_makepoint"));
+
+        // Spatial measurements
         assert!(udfs.contains_key("st_distance"));
         assert!(udfs.contains_key("st_area"));
         assert!(udfs.contains_key("st_length"));
+
+        // Spatial operations
+        assert!(udfs.contains_key("st_buffer"));
+        assert!(udfs.contains_key("st_centroid"));
+        assert!(udfs.contains_key("st_union"));
+        assert!(udfs.contains_key("st_intersection"));
     }
 }
