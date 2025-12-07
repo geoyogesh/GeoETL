@@ -30,6 +30,7 @@
 //! These functions test spatial relationships between geometries:
 //! - [`create_st_intersects_udf`]: Test if two geometries intersect
 //! - [`create_st_contains_udf`]: Test if geometry A contains geometry B
+//! - [`create_st_within_udf`]: Test if geometry A is within geometry B
 //!
 //! # Example Usage
 //!
@@ -61,6 +62,7 @@ mod st_intersects;
 mod st_length;
 mod st_point;
 mod st_union;
+mod st_within;
 
 pub use st_area::create_st_area_udf;
 pub use st_buffer::create_st_buffer_udf;
@@ -74,6 +76,7 @@ pub use st_intersects::create_st_intersects_udf;
 pub use st_length::create_st_length_udf;
 pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
 pub use st_union::create_st_union_udf;
+pub use st_within::create_st_within_udf;
 
 /// Register all spatial UDFs with the `DataFusion` `SessionContext`
 ///
@@ -102,6 +105,7 @@ pub use st_union::create_st_union_udf;
 /// ## Spatial Predicates
 /// - `ST_Intersects(geom1, geom2)` - Test if geometries intersect
 /// - `ST_Contains(geom_a, geom_b)` - Test if geometry A contains geometry B
+/// - `ST_Within(geom_a, geom_b)` - Test if geometry A is within geometry B
 ///
 /// # Errors
 ///
@@ -141,6 +145,7 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     // Register spatial predicates
     ctx.register_udf(create_st_intersects_udf());
     ctx.register_udf(create_st_contains_udf());
+    ctx.register_udf(create_st_within_udf());
 
     Ok(())
 }
@@ -179,5 +184,6 @@ mod tests {
         // Spatial predicates
         assert!(udfs.contains_key("st_intersects"));
         assert!(udfs.contains_key("st_contains"));
+        assert!(udfs.contains_key("st_within"));
     }
 }
