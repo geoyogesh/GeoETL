@@ -413,4 +413,58 @@ mod tests {
         assert!(result.is_null(1)); // First null
         assert!(result.is_null(2)); // Second null
     }
+
+    #[test]
+    fn test_array_length_mismatch() {
+        let points1 = create_point_array(&[(0.0, 0.0), (1.0, 1.0)]);
+        let points2 = create_point_array(&[(3.0, 4.0)]);
+
+        let result = compute_distances(
+            &points1,
+            &points2,
+            Some(GEOARROW_POINT),
+            Some(GEOARROW_POINT),
+            None,
+            None,
+        );
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("same length"));
+    }
+
+    #[test]
+    fn test_unsupported_geometry_type() {
+        let points = create_point_array(&[(0.0, 0.0)]);
+
+        let result = array_to_geos(&points, 0, Some("unsupported.type"), None);
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(err.contains("Unsupported geometry type"));
+    }
+
+    #[test]
+    fn test_invalid_wkb() {
+        let invalid_wkb: ArrayRef = Arc::new(BinaryArray::from(vec![&[0u8, 1, 2, 3][..]]));
+
+        let result = array_to_geos(&invalid_wkb, 0, Some(GEOARROW_WKB), None);
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(err.contains("Invalid WKB"));
+    }
+
+    #[test]
+    fn test_unknown_geometry_format() {
+        use datafusion::arrow::array::Int32Array;
+
+        // Use an unsupported array type (Int32)
+        let arr: ArrayRef = Arc::new(Int32Array::from(vec![1, 2, 3]));
+
+        let result = array_to_geos(&arr, 0, None, None);
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(err.contains("Unknown geometry format"));
+    }
 }

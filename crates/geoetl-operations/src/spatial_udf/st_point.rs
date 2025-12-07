@@ -260,5 +260,81 @@ mod tests {
 
         let result = coords_to_point_array(&x_array, &y_array);
         assert!(result.is_err());
+        assert!(result.unwrap_err().contains("same length"));
+    }
+
+    #[test]
+    fn test_coords_to_point_array_int32() {
+        use datafusion::arrow::array::Int32Array;
+
+        let x_array: ArrayRef = Arc::new(Int32Array::from(vec![1, 2, 3]));
+        let y_array: ArrayRef = Arc::new(Int32Array::from(vec![4, 5, 6]));
+
+        let result = coords_to_point_array(&x_array, &y_array).unwrap();
+        assert_eq!(result.len(), 3);
+
+        let point_array = result
+            .as_any()
+            .downcast_ref::<FixedSizeListArray>()
+            .unwrap();
+
+        let values = point_array.values();
+        let coords = values.as_any().downcast_ref::<Float64Array>().unwrap();
+        assert!((coords.value(0) - 1.0).abs() < 1e-10);
+        assert!((coords.value(1) - 4.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_coords_to_point_array_int64() {
+        use datafusion::arrow::array::Int64Array;
+
+        let x_array: ArrayRef = Arc::new(Int64Array::from(vec![1i64, 2, 3]));
+        let y_array: ArrayRef = Arc::new(Int64Array::from(vec![4i64, 5, 6]));
+
+        let result = coords_to_point_array(&x_array, &y_array).unwrap();
+        assert_eq!(result.len(), 3);
+
+        let point_array = result
+            .as_any()
+            .downcast_ref::<FixedSizeListArray>()
+            .unwrap();
+
+        let values = point_array.values();
+        let coords = values.as_any().downcast_ref::<Float64Array>().unwrap();
+        assert!((coords.value(0) - 1.0).abs() < 1e-10);
+        assert!((coords.value(1) - 4.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_coords_to_point_array_float32() {
+        use datafusion::arrow::array::Float32Array;
+
+        let x_array: ArrayRef = Arc::new(Float32Array::from(vec![1.0f32, 2.0, 3.0]));
+        let y_array: ArrayRef = Arc::new(Float32Array::from(vec![4.0f32, 5.0, 6.0]));
+
+        let result = coords_to_point_array(&x_array, &y_array).unwrap();
+        assert_eq!(result.len(), 3);
+
+        let point_array = result
+            .as_any()
+            .downcast_ref::<FixedSizeListArray>()
+            .unwrap();
+
+        let values = point_array.values();
+        let coords = values.as_any().downcast_ref::<Float64Array>().unwrap();
+        assert!((coords.value(0) - 1.0).abs() < 1e-10);
+        assert!((coords.value(1) - 4.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_coords_to_point_array_unsupported_type() {
+        use datafusion::arrow::array::StringArray;
+
+        let x_array: ArrayRef = Arc::new(StringArray::from(vec!["1.0", "2.0"]));
+        let y_array: ArrayRef = Arc::new(Float64Array::from(vec![4.0, 5.0]));
+
+        let result = coords_to_point_array(&x_array, &y_array);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unsupported coordinate type"));
     }
 }

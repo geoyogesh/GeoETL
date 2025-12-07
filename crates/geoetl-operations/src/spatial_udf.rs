@@ -16,6 +16,8 @@
 //! ## Spatial Operations
 //! These functions operate on geometries (in WKB format):
 //! - [`create_st_distance_udf`]: Calculate minimum distance between geometries
+//! - [`create_st_area_udf`]: Calculate area of a geometry
+//! - [`create_st_length_udf`]: Calculate length/perimeter of a geometry
 //!
 //! # Example Usage
 //!
@@ -34,14 +36,18 @@ use anyhow::Result;
 use datafusion::prelude::SessionContext;
 
 mod geoarrow_types;
+mod st_area;
 mod st_distance;
 mod st_geomfromtext;
 mod st_geomfromwkb;
+mod st_length;
 mod st_point;
 
+pub use st_area::create_st_area_udf;
 pub use st_distance::create_st_distance_udf;
 pub use st_geomfromtext::create_st_geomfromtext_udf;
 pub use st_geomfromwkb::create_st_geomfromwkb_udf;
+pub use st_length::create_st_length_udf;
 pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
 
 /// Register all spatial UDFs with the `DataFusion` `SessionContext`
@@ -59,6 +65,8 @@ pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
 ///
 /// ## Spatial Operations
 /// - `ST_Distance(geom1, geom2)` - Minimum distance between geometries
+/// - `ST_Area(geom)` - Area of a geometry
+/// - `ST_Length(geom)` - Length/perimeter of a geometry
 ///
 /// # Errors
 ///
@@ -86,6 +94,31 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
 
     // Register spatial operations
     ctx.register_udf(create_st_distance_udf());
+    ctx.register_udf(create_st_area_udf());
+    ctx.register_udf(create_st_length_udf());
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_register_spatial_udfs() {
+        let ctx = SessionContext::new();
+        let result = register_spatial_udfs(&ctx);
+        assert!(result.is_ok());
+
+        // Verify all UDFs are registered
+        let state = ctx.state();
+        let udfs = state.scalar_functions();
+        assert!(udfs.contains_key("st_geomfromtext"));
+        assert!(udfs.contains_key("st_geomfromwkb"));
+        assert!(udfs.contains_key("st_point"));
+        assert!(udfs.contains_key("st_makepoint"));
+        assert!(udfs.contains_key("st_distance"));
+        assert!(udfs.contains_key("st_area"));
+        assert!(udfs.contains_key("st_length"));
+    }
 }
