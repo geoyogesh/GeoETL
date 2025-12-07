@@ -32,6 +32,12 @@
 //! - [`create_st_contains_udf`]: Test if geometry A contains geometry B
 //! - [`create_st_within_udf`]: Test if geometry A is within geometry B
 //! - [`create_st_overlaps_udf`]: Test if two geometries overlap
+//! - [`create_st_touches_udf`]: Test if geometries touch (share boundary but not interior)
+//! - [`create_st_crosses_udf`]: Test if geometries cross
+//! - [`create_st_disjoint_udf`]: Test if geometries are disjoint (no intersection)
+//! - [`create_st_equals_udf`]: Test if geometries are spatially equal
+//! - [`create_st_covers_udf`]: Test if geometry A covers geometry B
+//! - [`create_st_covered_by_udf`]: Test if geometry A is covered by geometry B
 //!
 //! # Example Usage
 //!
@@ -55,7 +61,12 @@ mod st_area;
 mod st_buffer;
 mod st_centroid;
 mod st_contains;
+mod st_covered_by;
+mod st_covers;
+mod st_crosses;
+mod st_disjoint;
 mod st_distance;
+mod st_equals;
 mod st_geomfromtext;
 mod st_geomfromwkb;
 mod st_intersection;
@@ -63,6 +74,7 @@ mod st_intersects;
 mod st_length;
 mod st_overlaps;
 mod st_point;
+mod st_touches;
 mod st_union;
 mod st_within;
 
@@ -70,7 +82,12 @@ pub use st_area::create_st_area_udf;
 pub use st_buffer::create_st_buffer_udf;
 pub use st_centroid::create_st_centroid_udf;
 pub use st_contains::create_st_contains_udf;
+pub use st_covered_by::create_st_covered_by_udf;
+pub use st_covers::create_st_covers_udf;
+pub use st_crosses::create_st_crosses_udf;
+pub use st_disjoint::create_st_disjoint_udf;
 pub use st_distance::create_st_distance_udf;
+pub use st_equals::create_st_equals_udf;
 pub use st_geomfromtext::create_st_geomfromtext_udf;
 pub use st_geomfromwkb::create_st_geomfromwkb_udf;
 pub use st_intersection::create_st_intersection_udf;
@@ -78,6 +95,7 @@ pub use st_intersects::create_st_intersects_udf;
 pub use st_length::create_st_length_udf;
 pub use st_overlaps::create_st_overlaps_udf;
 pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
+pub use st_touches::create_st_touches_udf;
 pub use st_union::create_st_union_udf;
 pub use st_within::create_st_within_udf;
 
@@ -110,6 +128,12 @@ pub use st_within::create_st_within_udf;
 /// - `ST_Contains(geom_a, geom_b)` - Test if geometry A contains geometry B
 /// - `ST_Within(geom_a, geom_b)` - Test if geometry A is within geometry B
 /// - `ST_Overlaps(geom1, geom2)` - Test if geometries overlap
+/// - `ST_Touches(geom1, geom2)` - Test if geometries touch
+/// - `ST_Crosses(geom1, geom2)` - Test if geometries cross
+/// - `ST_Disjoint(geom1, geom2)` - Test if geometries are disjoint
+/// - `ST_Equals(geom1, geom2)` - Test if geometries are spatially equal
+/// - `ST_Covers(geom_a, geom_b)` - Test if geometry A covers geometry B
+/// - `ST_CoveredBy(geom_a, geom_b)` - Test if geometry A is covered by geometry B
 ///
 /// # Errors
 ///
@@ -151,6 +175,12 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(create_st_contains_udf());
     ctx.register_udf(create_st_within_udf());
     ctx.register_udf(create_st_overlaps_udf());
+    ctx.register_udf(create_st_touches_udf());
+    ctx.register_udf(create_st_crosses_udf());
+    ctx.register_udf(create_st_disjoint_udf());
+    ctx.register_udf(create_st_equals_udf());
+    ctx.register_udf(create_st_covers_udf());
+    ctx.register_udf(create_st_covered_by_udf());
 
     Ok(())
 }
@@ -191,5 +221,11 @@ mod tests {
         assert!(udfs.contains_key("st_contains"));
         assert!(udfs.contains_key("st_within"));
         assert!(udfs.contains_key("st_overlaps"));
+        assert!(udfs.contains_key("st_touches"));
+        assert!(udfs.contains_key("st_crosses"));
+        assert!(udfs.contains_key("st_disjoint"));
+        assert!(udfs.contains_key("st_equals"));
+        assert!(udfs.contains_key("st_covers"));
+        assert!(udfs.contains_key("st_coveredby"));
     }
 }
