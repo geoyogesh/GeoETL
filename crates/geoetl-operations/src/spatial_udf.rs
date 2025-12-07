@@ -29,6 +29,7 @@
 //! ## Spatial Predicates
 //! These functions test spatial relationships between geometries:
 //! - [`create_st_intersects_udf`]: Test if two geometries intersect
+//! - [`create_st_contains_udf`]: Test if geometry A contains geometry B
 //!
 //! # Example Usage
 //!
@@ -51,6 +52,7 @@ mod geos_helpers;
 mod st_area;
 mod st_buffer;
 mod st_centroid;
+mod st_contains;
 mod st_distance;
 mod st_geomfromtext;
 mod st_geomfromwkb;
@@ -63,6 +65,7 @@ mod st_union;
 pub use st_area::create_st_area_udf;
 pub use st_buffer::create_st_buffer_udf;
 pub use st_centroid::create_st_centroid_udf;
+pub use st_contains::create_st_contains_udf;
 pub use st_distance::create_st_distance_udf;
 pub use st_geomfromtext::create_st_geomfromtext_udf;
 pub use st_geomfromwkb::create_st_geomfromwkb_udf;
@@ -98,6 +101,7 @@ pub use st_union::create_st_union_udf;
 ///
 /// ## Spatial Predicates
 /// - `ST_Intersects(geom1, geom2)` - Test if geometries intersect
+/// - `ST_Contains(geom_a, geom_b)` - Test if geometry A contains geometry B
 ///
 /// # Errors
 ///
@@ -136,6 +140,7 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
 
     // Register spatial predicates
     ctx.register_udf(create_st_intersects_udf());
+    ctx.register_udf(create_st_contains_udf());
 
     Ok(())
 }
@@ -173,5 +178,6 @@ mod tests {
 
         // Spatial predicates
         assert!(udfs.contains_key("st_intersects"));
+        assert!(udfs.contains_key("st_contains"));
     }
 }

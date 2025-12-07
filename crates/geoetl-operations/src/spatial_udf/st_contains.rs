@@ -1,0 +1,356 @@
+//! `ST_Contains` implementation using `GEOS` via `GeoArrow` arrays
+//!
+//! This function tests if geometry A completely contains geometry B.
+//! It accepts `GeoArrow` geometry types:
+//! - `geoarrow.point` (`FixedSizeList<Float64, 2>`)
+//! - `geoarrow.wkb` (Binary)
+//! - `geoarrow.geometry` (Union) - mixed geometry types from `GeoJSON`
+//!
+//! Returns `true` if A contains B (no points of B lie outside A, and at least
+//! one interior point of B lies in A's interior), `false` otherwise.
+
+use super::geoarrow_types::{get_geoarrow_type, is_geoarrow_geometry};
+use super::geos_helpers::array_to_geos;
+use datafusion::arrow::array::{Array, ArrayRef, BooleanBuilder};
+use datafusion::arrow::datatypes::DataType;
+use datafusion::error::DataFusionError;
+use datafusion::logical_expr::{ScalarFunctionArgs, ScalarUDF, TypeSignature, Volatility};
+use datafusion::physical_plan::ColumnarValue;
+use geos::Geom;
+use std::sync::Arc;
+
+/// Create the `ST_Contains` User Defined Function
+///
+/// `ST_Contains` returns true if geometry A completely contains geometry B.
+/// This is the inverse of `ST_Within` (i.e., `ST_Contains(A, B) == ST_Within(B, A)`).
+///
+/// # SQL Usage
+///
+/// ```sql
+/// -- Check if polygon contains point
+/// SELECT ST_Contains(boundary, location) FROM properties;
+///
+/// -- Filter points within a region
+/// SELECT * FROM sensors
+/// WHERE ST_Contains(ST_GeomFromText('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'), location);
+///
+/// -- Find which zone contains each device
+/// SELECT d.name, z.zone_name FROM devices d, zones z
+/// WHERE ST_Contains(z.boundary, d.location);
+/// ```
+///
+/// # Arguments
+///
+/// - `geometry_a`: The containing `GeoArrow` geometry
+/// - `geometry_b`: The `GeoArrow` geometry to test if contained
+///
+/// # Returns
+///
+/// `Boolean`: `true` if A contains B, `false` otherwise
+#[must_use]
+pub fn create_st_contains_udf() -> ScalarUDF {
+    ScalarUDF::new_from_impl(StContainsUDF::new())
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
+struct StContainsUDF {
+    signature: datafusion::logical_expr::Signature,
+}
+
+impl StContainsUDF {
+    fn new() -> Self {
+        use super::geoarrow_types::point_data_type;
+
+        Self {
+            signature: datafusion::logical_expr::Signature::one_of(
+                vec![
+                    // Point-to-Point
+                    TypeSignature::Exact(vec![point_data_type(), point_data_type()]),
+                    // WKB-to-WKB
+                    TypeSignature::Exact(vec![DataType::Binary, DataType::Binary]),
+                    // Mixed types
+                    TypeSignature::Any(2),
+                ],
+                Volatility::Immutable,
+            ),
+        }
+    }
+}
+
+impl datafusion::logical_expr::ScalarUDFImpl for StContainsUDF {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    #[allow(clippy::unnecessary_literal_bound)]
+    fn name(&self) -> &str {
+        "st_contains"
+    }
+
+    fn signature(&self) -> &datafusion::logical_expr::Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, _arg_types: &[DataType]) -> datafusion::error::Result<DataType> {
+        Ok(DataType::Boolean)
+    }
+
+    #[allow(clippy::similar_names)]
+    fn invoke_with_args(
+        &self,
+        args: ScalarFunctionArgs,
+    ) -> datafusion::error::Result<ColumnarValue> {
+        // Determine target length from arrays (scalars need to be broadcast)
+        let len = args
+            .args
+            .iter()
+            .map(|arg| match arg {
+                ColumnarValue::Array(arr) => arr.len(),
+                ColumnarValue::Scalar(_) => 1,
+            })
+            .max()
+            .unwrap_or(1);
+
+        let geom_a_array = match &args.args[0] {
+            ColumnarValue::Array(array) => array.clone(),
+            ColumnarValue::Scalar(scalar) => scalar.to_array_of_size(len)?,
+        };
+
+        let geom_b_array = match &args.args[1] {
+            ColumnarValue::Array(array) => array.clone(),
+            ColumnarValue::Scalar(scalar) => scalar.to_array_of_size(len)?,
+        };
+
+        // Get geometry types and fields from metadata if available
+        let field_a = args.arg_fields.first().map(std::convert::AsRef::as_ref);
+        let field_b = args.arg_fields.get(1).map(std::convert::AsRef::as_ref);
+        let type_a = field_a.and_then(get_geoarrow_type);
+        let type_b = field_b.and_then(get_geoarrow_type);
+
+        // Validate inputs are GeoArrow types
+        if let (Some(f_a), Some(f_b)) = (field_a, field_b)
+            && (!is_geoarrow_geometry(f_a) || !is_geoarrow_geometry(f_b))
+            && (!matches!(
+                geom_a_array.data_type(),
+                DataType::Binary | DataType::FixedSizeList(_, 2)
+            ) || !matches!(
+                geom_b_array.data_type(),
+                DataType::Binary | DataType::FixedSizeList(_, 2)
+            ))
+        {
+            return Err(DataFusionError::Execution(
+                "ST_Contains requires GeoArrow geometry inputs. Use ST_Point, ST_GeomFromText, or ST_GeomFromWKB.".to_string(),
+            ));
+        }
+
+        // Validate arrays have same length
+        if geom_a_array.len() != geom_b_array.len() {
+            return Err(DataFusionError::Execution(format!(
+                "ST_Contains: geometry arrays must have same length: {} vs {}",
+                geom_a_array.len(),
+                geom_b_array.len()
+            )));
+        }
+
+        let results = compute_contains(
+            &geom_a_array,
+            &geom_b_array,
+            type_a,
+            type_b,
+            field_a,
+            field_b,
+        )
+        .map_err(|e| DataFusionError::Execution(format!("ST_Contains failed: {e}")))?;
+
+        Ok(ColumnarValue::Array(Arc::new(results)))
+    }
+}
+
+/// Compute contains predicate for two geometry arrays using `GEOS`
+fn compute_contains(
+    arr_a: &ArrayRef,
+    arr_b: &ArrayRef,
+    type_a: Option<&str>,
+    type_b: Option<&str>,
+    field_a: Option<&arrow_schema::Field>,
+    field_b: Option<&arrow_schema::Field>,
+) -> Result<datafusion::arrow::array::BooleanArray, String> {
+    let len = arr_a.len();
+    let mut builder = BooleanBuilder::with_capacity(len);
+
+    for i in 0..len {
+        if arr_a.is_null(i) || arr_b.is_null(i) {
+            builder.append_null();
+            continue;
+        }
+
+        let geos_a = array_to_geos(arr_a, i, type_a, field_a)?;
+        let geos_b = array_to_geos(arr_b, i, type_b, field_b)?;
+
+        let contains = geos_a
+            .contains(&geos_b)
+            .map_err(|e| format!("GEOS contains failed at row {i}: {e}"))?;
+
+        builder.append_value(contains);
+    }
+
+    Ok(builder.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::geoarrow_types::GEOARROW_WKB;
+    use super::*;
+    use datafusion::arrow::array::BinaryArray;
+    use geos::Geometry as GeosGeometry;
+
+    fn wkt_to_wkb(wkt: &str) -> Vec<u8> {
+        let geom = GeosGeometry::new_from_wkt(wkt).unwrap();
+        geom.to_wkb().unwrap().into()
+    }
+
+    #[test]
+    fn test_st_contains_udf_creation() {
+        let udf = create_st_contains_udf();
+        assert_eq!(udf.name(), "st_contains");
+    }
+
+    #[test]
+    fn test_contains_point_in_polygon() {
+        let polygon_wkb = wkt_to_wkb("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))");
+        let point_inside_wkb = wkt_to_wkb("POINT(5 5)");
+        let point_outside_wkb = wkt_to_wkb("POINT(20 20)");
+
+        let polygon_arr: ArrayRef = Arc::new(BinaryArray::from(vec![
+            polygon_wkb.as_slice(),
+            polygon_wkb.as_slice(),
+        ]));
+        let point_arr: ArrayRef = Arc::new(BinaryArray::from(vec![
+            point_inside_wkb.as_slice(),
+            point_outside_wkb.as_slice(),
+        ]));
+
+        let result = compute_contains(
+            &polygon_arr,
+            &point_arr,
+            Some(GEOARROW_WKB),
+            Some(GEOARROW_WKB),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert!(result.value(0), "Polygon should contain point inside");
+        assert!(!result.value(1), "Polygon should not contain point outside");
+    }
+
+    #[test]
+    fn test_contains_polygon_in_polygon() {
+        let large_polygon = wkt_to_wkb("POLYGON((0 0, 20 0, 20 20, 0 20, 0 0))");
+        let small_inside = wkt_to_wkb("POLYGON((5 5, 15 5, 15 15, 5 15, 5 5))");
+        let small_outside = wkt_to_wkb("POLYGON((30 30, 40 30, 40 40, 30 40, 30 30))");
+
+        let large_arr: ArrayRef = Arc::new(BinaryArray::from(vec![
+            large_polygon.as_slice(),
+            large_polygon.as_slice(),
+        ]));
+        let small_arr: ArrayRef = Arc::new(BinaryArray::from(vec![
+            small_inside.as_slice(),
+            small_outside.as_slice(),
+        ]));
+
+        let result = compute_contains(
+            &large_arr,
+            &small_arr,
+            Some(GEOARROW_WKB),
+            Some(GEOARROW_WKB),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert!(result.value(0), "Large polygon should contain small inside");
+        assert!(
+            !result.value(1),
+            "Large polygon should not contain small outside"
+        );
+    }
+
+    #[test]
+    fn test_contains_null_handling() {
+        let polygon_wkb = wkt_to_wkb("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))");
+        let point_wkb = wkt_to_wkb("POINT(0.5 0.5)");
+
+        let polygon_arr: ArrayRef = Arc::new(BinaryArray::from(vec![
+            Some(polygon_wkb.as_slice()),
+            None,
+            Some(polygon_wkb.as_slice()),
+        ]));
+
+        let point_arr: ArrayRef = Arc::new(BinaryArray::from(vec![
+            Some(point_wkb.as_slice()),
+            Some(point_wkb.as_slice()),
+            None,
+        ]));
+
+        let result = compute_contains(
+            &polygon_arr,
+            &point_arr,
+            Some(GEOARROW_WKB),
+            Some(GEOARROW_WKB),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(result.len(), 3);
+        assert!(!result.is_null(0));
+        assert!(result.is_null(1));
+        assert!(result.is_null(2));
+    }
+
+    #[test]
+    fn test_contains_point_not_contained() {
+        // A point cannot contain anything except itself
+        let point1_wkb = wkt_to_wkb("POINT(0 0)");
+        let point2_wkb = wkt_to_wkb("POINT(1 1)");
+
+        let arr1: ArrayRef = Arc::new(BinaryArray::from(vec![point1_wkb.as_slice()]));
+        let arr2: ArrayRef = Arc::new(BinaryArray::from(vec![point2_wkb.as_slice()]));
+
+        let result = compute_contains(
+            &arr1,
+            &arr2,
+            Some(GEOARROW_WKB),
+            Some(GEOARROW_WKB),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert!(!result.value(0), "Point should not contain different point");
+    }
+
+    #[test]
+    fn test_contains_same_point() {
+        // A point contains itself
+        let point_wkb = wkt_to_wkb("POINT(5 5)");
+
+        let arr1: ArrayRef = Arc::new(BinaryArray::from(vec![point_wkb.as_slice()]));
+        let arr2: ArrayRef = Arc::new(BinaryArray::from(vec![point_wkb.as_slice()]));
+
+        let result = compute_contains(
+            &arr1,
+            &arr2,
+            Some(GEOARROW_WKB),
+            Some(GEOARROW_WKB),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert!(result.value(0), "Point should contain itself");
+    }
+}
