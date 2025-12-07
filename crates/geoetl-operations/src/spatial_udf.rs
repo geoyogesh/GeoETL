@@ -61,6 +61,15 @@
 //! - [`create_st_difference_udf`]: Compute difference of two geometries (A - B)
 //! - [`create_st_sym_difference_udf`]: Compute symmetric difference (XOR)
 //!
+//! ## Accessors
+//! These functions extract information from geometries:
+//! - [`create_st_x_udf`]: Get X coordinate of a Point
+//! - [`create_st_y_udf`]: Get Y coordinate of a Point
+//! - [`create_st_num_points_udf`]: Count of points in geometry
+//! - [`create_st_num_geometries_udf`]: Count of geometries in collection
+//! - [`create_st_geometry_type_udf`]: Get geometry type as string
+//! - [`create_st_dimension_udf`]: Get topological dimension
+//!
 //! # Example Usage
 //!
 //! ```sql
@@ -89,10 +98,12 @@ mod st_covered_by;
 mod st_covers;
 mod st_crosses;
 mod st_difference;
+mod st_dimension;
 mod st_disjoint;
 mod st_distance;
 mod st_envelope;
 mod st_equals;
+mod st_geometry_type;
 mod st_geomfromtext;
 mod st_geomfromwkb;
 mod st_intersection;
@@ -103,6 +114,8 @@ mod st_is_ring;
 mod st_is_simple;
 mod st_is_valid;
 mod st_length;
+mod st_num_geometries;
+mod st_num_points;
 mod st_overlaps;
 mod st_point;
 mod st_point_on_surface;
@@ -112,6 +125,8 @@ mod st_sym_difference;
 mod st_touches;
 mod st_union;
 mod st_within;
+mod st_x;
+mod st_y;
 
 pub use st_area::create_st_area_udf;
 pub use st_boundary::create_st_boundary_udf;
@@ -123,10 +138,12 @@ pub use st_covered_by::create_st_covered_by_udf;
 pub use st_covers::create_st_covers_udf;
 pub use st_crosses::create_st_crosses_udf;
 pub use st_difference::create_st_difference_udf;
+pub use st_dimension::create_st_dimension_udf;
 pub use st_disjoint::create_st_disjoint_udf;
 pub use st_distance::create_st_distance_udf;
 pub use st_envelope::create_st_envelope_udf;
 pub use st_equals::create_st_equals_udf;
+pub use st_geometry_type::create_st_geometry_type_udf;
 pub use st_geomfromtext::create_st_geomfromtext_udf;
 pub use st_geomfromwkb::create_st_geomfromwkb_udf;
 pub use st_intersection::create_st_intersection_udf;
@@ -137,6 +154,8 @@ pub use st_is_ring::create_st_is_ring_udf;
 pub use st_is_simple::create_st_is_simple_udf;
 pub use st_is_valid::create_st_is_valid_udf;
 pub use st_length::create_st_length_udf;
+pub use st_num_geometries::create_st_num_geometries_udf;
+pub use st_num_points::create_st_num_points_udf;
 pub use st_overlaps::create_st_overlaps_udf;
 pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
 pub use st_point_on_surface::create_st_point_on_surface_udf;
@@ -146,6 +165,8 @@ pub use st_sym_difference::create_st_sym_difference_udf;
 pub use st_touches::create_st_touches_udf;
 pub use st_union::create_st_union_udf;
 pub use st_within::create_st_within_udf;
+pub use st_x::create_st_x_udf;
+pub use st_y::create_st_y_udf;
 
 /// Register all spatial UDFs with the `DataFusion` `SessionContext`
 ///
@@ -201,6 +222,14 @@ pub use st_within::create_st_within_udf;
 /// ## Set Operations
 /// - `ST_Difference(geom1, geom2)` - Difference of geometries (A - B)
 /// - `ST_SymDifference(geom1, geom2)` - Symmetric difference (XOR)
+///
+/// ## Accessors
+/// - `ST_X(geom)` - Get X coordinate of a Point
+/// - `ST_Y(geom)` - Get Y coordinate of a Point
+/// - `ST_NumPoints(geom)` - Count of points in geometry
+/// - `ST_NumGeometries(geom)` - Count of geometries in collection
+/// - `ST_GeometryType(geom)` - Get geometry type as string
+/// - `ST_Dimension(geom)` - Get topological dimension
 ///
 /// # Errors
 ///
@@ -268,6 +297,14 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(create_st_difference_udf());
     ctx.register_udf(create_st_sym_difference_udf());
 
+    // Register accessors
+    ctx.register_udf(create_st_x_udf());
+    ctx.register_udf(create_st_y_udf());
+    ctx.register_udf(create_st_num_points_udf());
+    ctx.register_udf(create_st_num_geometries_udf());
+    ctx.register_udf(create_st_geometry_type_udf());
+    ctx.register_udf(create_st_dimension_udf());
+
     Ok(())
 }
 
@@ -332,5 +369,13 @@ mod tests {
         // Set operations
         assert!(udfs.contains_key("st_difference"));
         assert!(udfs.contains_key("st_symdifference"));
+
+        // Accessors
+        assert!(udfs.contains_key("st_x"));
+        assert!(udfs.contains_key("st_y"));
+        assert!(udfs.contains_key("st_numpoints"));
+        assert!(udfs.contains_key("st_numgeometries"));
+        assert!(udfs.contains_key("st_geometrytype"));
+        assert!(udfs.contains_key("st_dimension"));
     }
 }
