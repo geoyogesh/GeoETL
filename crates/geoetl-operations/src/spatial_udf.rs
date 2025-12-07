@@ -47,6 +47,20 @@
 //! - [`create_st_is_closed_udf`]: Test if geometry is closed (start equals end)
 //! - [`create_st_is_ring_udf`]: Test if geometry is a ring (closed and simple)
 //!
+//! ## Geometry Generators
+//! These functions create new geometries from existing ones:
+//! - [`create_st_envelope_udf`]: Compute bounding box (envelope) of geometry
+//! - [`create_st_convex_hull_udf`]: Compute convex hull of geometry
+//! - [`create_st_boundary_udf`]: Compute boundary of geometry
+//! - [`create_st_point_on_surface_udf`]: Get a point guaranteed on the surface
+//! - [`create_st_simplify_udf`]: Simplify geometry using Douglas-Peucker
+//! - [`create_st_simplify_preserve_topology_udf`]: Simplify preserving topology
+//!
+//! ## Set Operations
+//! These functions compute set-theoretic operations on geometries:
+//! - [`create_st_difference_udf`]: Compute difference of two geometries (A - B)
+//! - [`create_st_sym_difference_udf`]: Compute symmetric difference (XOR)
+//!
 //! # Example Usage
 //!
 //! ```sql
@@ -66,14 +80,18 @@ use datafusion::prelude::SessionContext;
 mod geoarrow_types;
 mod geos_helpers;
 mod st_area;
+mod st_boundary;
 mod st_buffer;
 mod st_centroid;
 mod st_contains;
+mod st_convex_hull;
 mod st_covered_by;
 mod st_covers;
 mod st_crosses;
+mod st_difference;
 mod st_disjoint;
 mod st_distance;
+mod st_envelope;
 mod st_equals;
 mod st_geomfromtext;
 mod st_geomfromwkb;
@@ -87,19 +105,27 @@ mod st_is_valid;
 mod st_length;
 mod st_overlaps;
 mod st_point;
+mod st_point_on_surface;
+mod st_simplify;
+mod st_simplify_preserve_topology;
+mod st_sym_difference;
 mod st_touches;
 mod st_union;
 mod st_within;
 
 pub use st_area::create_st_area_udf;
+pub use st_boundary::create_st_boundary_udf;
 pub use st_buffer::create_st_buffer_udf;
 pub use st_centroid::create_st_centroid_udf;
 pub use st_contains::create_st_contains_udf;
+pub use st_convex_hull::create_st_convex_hull_udf;
 pub use st_covered_by::create_st_covered_by_udf;
 pub use st_covers::create_st_covers_udf;
 pub use st_crosses::create_st_crosses_udf;
+pub use st_difference::create_st_difference_udf;
 pub use st_disjoint::create_st_disjoint_udf;
 pub use st_distance::create_st_distance_udf;
+pub use st_envelope::create_st_envelope_udf;
 pub use st_equals::create_st_equals_udf;
 pub use st_geomfromtext::create_st_geomfromtext_udf;
 pub use st_geomfromwkb::create_st_geomfromwkb_udf;
@@ -113,6 +139,10 @@ pub use st_is_valid::create_st_is_valid_udf;
 pub use st_length::create_st_length_udf;
 pub use st_overlaps::create_st_overlaps_udf;
 pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
+pub use st_point_on_surface::create_st_point_on_surface_udf;
+pub use st_simplify::create_st_simplify_udf;
+pub use st_simplify_preserve_topology::create_st_simplify_preserve_topology_udf;
+pub use st_sym_difference::create_st_sym_difference_udf;
 pub use st_touches::create_st_touches_udf;
 pub use st_union::create_st_union_udf;
 pub use st_within::create_st_within_udf;
@@ -152,6 +182,25 @@ pub use st_within::create_st_within_udf;
 /// - `ST_Equals(geom1, geom2)` - Test if geometries are spatially equal
 /// - `ST_Covers(geom_a, geom_b)` - Test if geometry A covers geometry B
 /// - `ST_CoveredBy(geom_a, geom_b)` - Test if geometry A is covered by geometry B
+///
+/// ## Unary Validators
+/// - `ST_IsValid(geom)` - Test if geometry is valid according to OGC rules
+/// - `ST_IsEmpty(geom)` - Test if geometry is empty
+/// - `ST_IsSimple(geom)` - Test if geometry is simple
+/// - `ST_IsClosed(geom)` - Test if geometry is closed
+/// - `ST_IsRing(geom)` - Test if geometry is a ring
+///
+/// ## Geometry Generators
+/// - `ST_Envelope(geom)` - Bounding box of geometry
+/// - `ST_ConvexHull(geom)` - Convex hull of geometry
+/// - `ST_Boundary(geom)` - Boundary of geometry
+/// - `ST_PointOnSurface(geom)` - Point guaranteed on surface
+/// - `ST_Simplify(geom, tolerance)` - Douglas-Peucker simplification
+/// - `ST_SimplifyPreserveTopology(geom, tolerance)` - Topology-preserving simplification
+///
+/// ## Set Operations
+/// - `ST_Difference(geom1, geom2)` - Difference of geometries (A - B)
+/// - `ST_SymDifference(geom1, geom2)` - Symmetric difference (XOR)
 ///
 /// # Errors
 ///
@@ -207,6 +256,18 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(create_st_is_closed_udf());
     ctx.register_udf(create_st_is_ring_udf());
 
+    // Register geometry generators
+    ctx.register_udf(create_st_envelope_udf());
+    ctx.register_udf(create_st_convex_hull_udf());
+    ctx.register_udf(create_st_boundary_udf());
+    ctx.register_udf(create_st_point_on_surface_udf());
+    ctx.register_udf(create_st_simplify_udf());
+    ctx.register_udf(create_st_simplify_preserve_topology_udf());
+
+    // Register set operations
+    ctx.register_udf(create_st_difference_udf());
+    ctx.register_udf(create_st_sym_difference_udf());
+
     Ok(())
 }
 
@@ -259,5 +320,17 @@ mod tests {
         assert!(udfs.contains_key("st_issimple"));
         assert!(udfs.contains_key("st_isclosed"));
         assert!(udfs.contains_key("st_isring"));
+
+        // Geometry generators
+        assert!(udfs.contains_key("st_envelope"));
+        assert!(udfs.contains_key("st_convexhull"));
+        assert!(udfs.contains_key("st_boundary"));
+        assert!(udfs.contains_key("st_pointonsurface"));
+        assert!(udfs.contains_key("st_simplify"));
+        assert!(udfs.contains_key("st_simplifypreservetopology"));
+
+        // Set operations
+        assert!(udfs.contains_key("st_difference"));
+        assert!(udfs.contains_key("st_symdifference"));
     }
 }
