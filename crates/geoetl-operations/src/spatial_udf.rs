@@ -43,6 +43,7 @@ use anyhow::Result;
 use datafusion::prelude::SessionContext;
 
 mod geoarrow_types;
+mod geos_helpers;
 mod st_area;
 mod st_buffer;
 mod st_centroid;
