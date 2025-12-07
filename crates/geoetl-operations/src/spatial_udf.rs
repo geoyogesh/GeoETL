@@ -31,6 +31,7 @@
 //! - [`create_st_intersects_udf`]: Test if two geometries intersect
 //! - [`create_st_contains_udf`]: Test if geometry A contains geometry B
 //! - [`create_st_within_udf`]: Test if geometry A is within geometry B
+//! - [`create_st_overlaps_udf`]: Test if two geometries overlap
 //!
 //! # Example Usage
 //!
@@ -60,6 +61,7 @@ mod st_geomfromwkb;
 mod st_intersection;
 mod st_intersects;
 mod st_length;
+mod st_overlaps;
 mod st_point;
 mod st_union;
 mod st_within;
@@ -74,6 +76,7 @@ pub use st_geomfromwkb::create_st_geomfromwkb_udf;
 pub use st_intersection::create_st_intersection_udf;
 pub use st_intersects::create_st_intersects_udf;
 pub use st_length::create_st_length_udf;
+pub use st_overlaps::create_st_overlaps_udf;
 pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
 pub use st_union::create_st_union_udf;
 pub use st_within::create_st_within_udf;
@@ -106,6 +109,7 @@ pub use st_within::create_st_within_udf;
 /// - `ST_Intersects(geom1, geom2)` - Test if geometries intersect
 /// - `ST_Contains(geom_a, geom_b)` - Test if geometry A contains geometry B
 /// - `ST_Within(geom_a, geom_b)` - Test if geometry A is within geometry B
+/// - `ST_Overlaps(geom1, geom2)` - Test if geometries overlap
 ///
 /// # Errors
 ///
@@ -146,6 +150,7 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(create_st_intersects_udf());
     ctx.register_udf(create_st_contains_udf());
     ctx.register_udf(create_st_within_udf());
+    ctx.register_udf(create_st_overlaps_udf());
 
     Ok(())
 }
@@ -185,5 +190,6 @@ mod tests {
         assert!(udfs.contains_key("st_intersects"));
         assert!(udfs.contains_key("st_contains"));
         assert!(udfs.contains_key("st_within"));
+        assert!(udfs.contains_key("st_overlaps"));
     }
 }
