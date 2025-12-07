@@ -59,9 +59,9 @@ const config: Config = {
           // Edit this page links to GitHub
           editUrl:
             'https://github.com/geoyogesh/geoetl/tree/main/docs/geoetl-doc-site/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
+          // Enforce blogging best practices - treat warnings as errors
+          onInlineTags: 'throw',
+          onInlineAuthors: 'throw',
           onUntruncatedBlogPosts: 'warn',
         },
         theme: {

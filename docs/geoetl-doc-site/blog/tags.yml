@@ -153,3 +153,33 @@ v0.3.1:
   label: v0.3.1
   permalink: /v0-3-1
   description: Version 0.3.1 release
+
+v0.4.0:
+  label: v0.4.0
+  permalink: /v0-4-0
+  description: Version 0.4.0 release
+
+v0.5.0:
+  label: v0.5.0
+  permalink: /v0-5-0
+  description: Version 0.5.0 release
+
+sql:
+  label: SQL
+  permalink: /sql
+  description: SQL query support and operations
+
+spatial:
+  label: Spatial
+  permalink: /spatial
+  description: Spatial operations and functions
+
+geos:
+  label: GEOS
+  permalink: /geos
+  description: GEOS geometry library integration
+
+data-transformation:
+  label: Data Transformation
+  permalink: /data-transformation
+  description: Data transformation and manipulation
