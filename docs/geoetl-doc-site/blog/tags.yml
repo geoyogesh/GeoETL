@@ -183,3 +183,8 @@ data-transformation:
   label: Data Transformation
   permalink: /data-transformation
   description: Data transformation and manipulation
+
+v0.6.0:
+  label: v0.6.0
+  permalink: /v0-6-0
+  description: Version 0.6.0 release
