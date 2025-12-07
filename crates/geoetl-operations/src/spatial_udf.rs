@@ -39,6 +39,14 @@
 //! - [`create_st_covers_udf`]: Test if geometry A covers geometry B
 //! - [`create_st_covered_by_udf`]: Test if geometry A is covered by geometry B
 //!
+//! ## Unary Validators
+//! These functions test geometric properties:
+//! - [`create_st_is_valid_udf`]: Test if geometry is valid according to OGC rules
+//! - [`create_st_is_empty_udf`]: Test if geometry is empty (has no points)
+//! - [`create_st_is_simple_udf`]: Test if geometry is simple (no self-intersections)
+//! - [`create_st_is_closed_udf`]: Test if geometry is closed (start equals end)
+//! - [`create_st_is_ring_udf`]: Test if geometry is a ring (closed and simple)
+//!
 //! # Example Usage
 //!
 //! ```sql
@@ -71,6 +79,11 @@ mod st_geomfromtext;
 mod st_geomfromwkb;
 mod st_intersection;
 mod st_intersects;
+mod st_is_closed;
+mod st_is_empty;
+mod st_is_ring;
+mod st_is_simple;
+mod st_is_valid;
 mod st_length;
 mod st_overlaps;
 mod st_point;
@@ -92,6 +105,11 @@ pub use st_geomfromtext::create_st_geomfromtext_udf;
 pub use st_geomfromwkb::create_st_geomfromwkb_udf;
 pub use st_intersection::create_st_intersection_udf;
 pub use st_intersects::create_st_intersects_udf;
+pub use st_is_closed::create_st_is_closed_udf;
+pub use st_is_empty::create_st_is_empty_udf;
+pub use st_is_ring::create_st_is_ring_udf;
+pub use st_is_simple::create_st_is_simple_udf;
+pub use st_is_valid::create_st_is_valid_udf;
 pub use st_length::create_st_length_udf;
 pub use st_overlaps::create_st_overlaps_udf;
 pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
@@ -182,6 +200,13 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(create_st_covers_udf());
     ctx.register_udf(create_st_covered_by_udf());
 
+    // Register unary validators
+    ctx.register_udf(create_st_is_valid_udf());
+    ctx.register_udf(create_st_is_empty_udf());
+    ctx.register_udf(create_st_is_simple_udf());
+    ctx.register_udf(create_st_is_closed_udf());
+    ctx.register_udf(create_st_is_ring_udf());
+
     Ok(())
 }
 
@@ -227,5 +252,12 @@ mod tests {
         assert!(udfs.contains_key("st_equals"));
         assert!(udfs.contains_key("st_covers"));
         assert!(udfs.contains_key("st_coveredby"));
+
+        // Unary validators
+        assert!(udfs.contains_key("st_isvalid"));
+        assert!(udfs.contains_key("st_isempty"));
+        assert!(udfs.contains_key("st_issimple"));
+        assert!(udfs.contains_key("st_isclosed"));
+        assert!(udfs.contains_key("st_isring"));
     }
 }
