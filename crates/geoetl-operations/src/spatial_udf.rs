@@ -26,6 +26,10 @@
 //! - [`create_st_union_udf`]: Combine two geometries
 //! - [`create_st_intersection_udf`]: Intersection of two geometries
 //!
+//! ## Spatial Predicates
+//! These functions test spatial relationships between geometries:
+//! - [`create_st_intersects_udf`]: Test if two geometries intersect
+//!
 //! # Example Usage
 //!
 //! ```sql
@@ -51,6 +55,7 @@ mod st_distance;
 mod st_geomfromtext;
 mod st_geomfromwkb;
 mod st_intersection;
+mod st_intersects;
 mod st_length;
 mod st_point;
 mod st_union;
@@ -62,6 +67,7 @@ pub use st_distance::create_st_distance_udf;
 pub use st_geomfromtext::create_st_geomfromtext_udf;
 pub use st_geomfromwkb::create_st_geomfromwkb_udf;
 pub use st_intersection::create_st_intersection_udf;
+pub use st_intersects::create_st_intersects_udf;
 pub use st_length::create_st_length_udf;
 pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
 pub use st_union::create_st_union_udf;
@@ -89,6 +95,9 @@ pub use st_union::create_st_union_udf;
 /// - `ST_Centroid(geom)` - Centroid point of geometry
 /// - `ST_Union(geom1, geom2)` - Combine two geometries
 /// - `ST_Intersection(geom1, geom2)` - Intersection of two geometries
+///
+/// ## Spatial Predicates
+/// - `ST_Intersects(geom1, geom2)` - Test if geometries intersect
 ///
 /// # Errors
 ///
@@ -125,6 +134,9 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(create_st_union_udf());
     ctx.register_udf(create_st_intersection_udf());
 
+    // Register spatial predicates
+    ctx.register_udf(create_st_intersects_udf());
+
     Ok(())
 }
 
@@ -158,5 +170,8 @@ mod tests {
         assert!(udfs.contains_key("st_centroid"));
         assert!(udfs.contains_key("st_union"));
         assert!(udfs.contains_key("st_intersection"));
+
+        // Spatial predicates
+        assert!(udfs.contains_key("st_intersects"));
     }
 }
