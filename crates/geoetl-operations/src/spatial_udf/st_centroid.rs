@@ -8,23 +8,17 @@
 //!
 //! Returns the centroid as WKB (Binary) with `geoarrow.wkb` metadata.
 
-use super::geoarrow_types::{
-    GEOARROW_GEOMETRY, GEOARROW_POINT, GEOARROW_WKB, get_geoarrow_type, is_geoarrow_geometry,
-    wkb_field,
-};
+use super::geoarrow_types::{get_geoarrow_type, is_geoarrow_geometry, wkb_field};
+use super::geos_helpers::array_to_geos;
 use arrow_schema::FieldRef;
-use datafusion::arrow::array::{
-    Array, ArrayRef, BinaryArray, BinaryBuilder, FixedSizeListArray, Float64Array,
-};
+use datafusion::arrow::array::{Array, ArrayRef, BinaryArray, BinaryBuilder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::{
     ReturnFieldArgs, ScalarFunctionArgs, ScalarUDF, TypeSignature, Volatility,
 };
 use datafusion::physical_plan::ColumnarValue;
-use geoarrow_array::{GeoArrowArray, GeoArrowArrayAccessor};
-use geos::{CoordSeq, Geom, Geometry as GeosGeometry};
-use geozero::{CoordDimensions, ToWkb};
+use geos::Geom;
 use std::sync::Arc;
 
 /// Create the `ST_Centroid` User Defined Function
@@ -171,93 +165,12 @@ fn compute_centroids(
     Ok(builder.finish())
 }
 
-/// Convert a single geometry from an array to `GEOS`
-fn array_to_geos(
-    arr: &ArrayRef,
-    idx: usize,
-    geo_type: Option<&str>,
-    field: Option<&arrow_schema::Field>,
-) -> Result<GeosGeometry, String> {
-    match geo_type {
-        Some(GEOARROW_POINT) | None if matches!(arr.data_type(), DataType::FixedSizeList(_, 2)) => {
-            // `GeoArrow` Point -> GEOS
-            let points = arr
-                .as_any()
-                .downcast_ref::<FixedSizeListArray>()
-                .ok_or("Expected FixedSizeList for Point")?;
-
-            let coords = points
-                .values()
-                .as_any()
-                .downcast_ref::<Float64Array>()
-                .ok_or("Expected Float64 coordinates")?;
-
-            let offset = idx * 2;
-            let x = coords.value(offset);
-            let y = coords.value(offset + 1);
-
-            let coord_seq = CoordSeq::new_from_vec(&[[x, y]])
-                .map_err(|e| format!("Failed to create CoordSeq: {e}"))?;
-
-            GeosGeometry::create_point(coord_seq)
-                .map_err(|e| format!("Failed to create GEOS point: {e}"))
-        },
-        Some(GEOARROW_WKB) | None if matches!(arr.data_type(), DataType::Binary) => {
-            // `GeoArrow` WKB -> GEOS
-            let wkb_array = arr
-                .as_any()
-                .downcast_ref::<BinaryArray>()
-                .ok_or("Expected Binary for WKB")?;
-
-            let wkb = wkb_array.value(idx);
-            GeosGeometry::new_from_wkb(wkb).map_err(|e| format!("Invalid WKB at row {idx}: {e}"))
-        },
-        Some(GEOARROW_GEOMETRY) => {
-            // `GeoArrow` mixed geometry (Union) -> GEOS via WKB
-            geometry_array_to_geos(arr, idx, field)
-        },
-        Some(other) => Err(format!("Unsupported geometry type: {other}")),
-        None => Err(format!(
-            "Unknown geometry format: {:?}. Use ST_Point, ST_GeomFromText, or ST_GeomFromWKB.",
-            arr.data_type()
-        )),
-    }
-}
-
-/// Convert a `GeoArrow` geometry array element to `GEOS` via WKB
-fn geometry_array_to_geos(
-    arr: &ArrayRef,
-    idx: usize,
-    field: Option<&arrow_schema::Field>,
-) -> Result<GeosGeometry, String> {
-    use geoarrow_array::array::GeometryArray;
-
-    // Need field metadata to construct GeometryArray
-    let field = field.ok_or("Field metadata required for geoarrow.geometry type")?;
-
-    let geom_arr = GeometryArray::try_from((arr.as_ref(), field))
-        .map_err(|e| format!("Failed to convert to GeometryArray: {e}"))?;
-
-    if geom_arr.is_null(idx) {
-        return Err(format!("Null geometry at row {idx}"));
-    }
-
-    // Get geometry and convert to WKB
-    let geom = geom_arr
-        .value(idx)
-        .map_err(|e| format!("Failed to get geometry at row {idx}: {e}"))?;
-
-    let wkb_bytes = geom
-        .to_wkb(CoordDimensions::xy())
-        .map_err(|e| format!("Failed to convert geometry to WKB at row {idx}: {e}"))?;
-
-    GeosGeometry::new_from_wkb(&wkb_bytes).map_err(|e| format!("Invalid WKB at row {idx}: {e}"))
-}
-
 #[cfg(test)]
 mod tests {
+    use super::super::geoarrow_types::{GEOARROW_POINT, GEOARROW_WKB};
     use super::*;
-    use datafusion::arrow::array::BinaryArray;
+    use datafusion::arrow::array::{BinaryArray, FixedSizeListArray, Float64Array};
+    use geos::Geometry as GeosGeometry;
 
     /// Create a `GeoArrow` Point array from coordinate pairs
     fn create_point_array(coords: &[(f64, f64)]) -> ArrayRef {
