@@ -188,3 +188,8 @@ v0.6.0:
   label: v0.6.0
   permalink: /v0-6-0
   description: Version 0.6.0 release
+
+v0.7.0:
+  label: v0.7.0
+  permalink: /v0-7-0
+  description: Version 0.7.0 release

@@ -11,6 +11,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-12-07
+
+### Added
+
+- **29 New Spatial SQL Functions** powered by GEOS:
+
+  - **Binary Predicates (10 functions)**
+    - `ST_Intersects`: True if geometries share any space
+    - `ST_Contains`: True if first geometry contains second
+    - `ST_Within`: True if first geometry is within second
+    - `ST_Overlaps`: True if geometries overlap but neither contains the other
+    - `ST_Touches`: True if geometries touch at boundary only
+    - `ST_Crosses`: True if geometries cross each other
+    - `ST_Disjoint`: True if geometries share no space
+    - `ST_Equals`: True if geometries are spatially equal
+    - `ST_Covers`: True if first geometry covers second
+    - `ST_CoveredBy`: True if first geometry is covered by second
+
+  - **Unary Validators (5 functions)**
+    - `ST_IsValid`: True if geometry is valid
+    - `ST_IsEmpty`: True if geometry is empty
+    - `ST_IsSimple`: True if geometry has no self-intersection
+    - `ST_IsClosed`: True if linestring is closed
+    - `ST_IsRing`: True if linestring is closed and simple
+
+  - **Geometry Generators (6 functions)**
+    - `ST_Envelope`: Bounding box of geometry
+    - `ST_ConvexHull`: Convex hull of geometry
+    - `ST_Boundary`: Boundary of geometry
+    - `ST_PointOnSurface`: Point guaranteed to be on surface
+    - `ST_Simplify`: Douglas-Peucker simplification
+    - `ST_SimplifyPreserveTopology`: Topology-preserving simplification
+
+  - **Set Operations (2 functions)**
+    - `ST_Difference`: First geometry minus second
+    - `ST_SymDifference`: Area in either but not both
+
+  - **Accessors (6 functions)**
+    - `ST_X`: X coordinate of point
+    - `ST_Y`: Y coordinate of point
+    - `ST_NumPoints`: Count of points in geometry
+    - `ST_NumGeometries`: Count of geometries in collection
+    - `ST_GeometryType`: Type name (Point, Polygon, etc.)
+    - `ST_Dimension`: Topological dimension (0, 1, or 2)
+
+  - **Geometry Operations (4 functions)**
+    - `ST_Buffer`: Create buffer around geometry
+    - `ST_Centroid`: Centroid of geometry
+    - `ST_Intersection`: Shared area between geometries
+    - `ST_Union`: Combined area of geometries
+
+- **Shared GEOS Helpers Module**
+  - New `geos_helpers.rs` module for consistent GeoArrow-to-GEOS geometry conversion
+  - Reduces code duplication across spatial UDFs by ~500 lines
+
+### Changed
+
+- **Refactored Spatial UDFs**
+  - All GEOS-based spatial UDFs now use shared helper module
+  - Improved error messages with row-level context
+  - Better null value propagation
+
+---
+
 ## [0.6.0] - 2025-12-07
 
 ### Added
