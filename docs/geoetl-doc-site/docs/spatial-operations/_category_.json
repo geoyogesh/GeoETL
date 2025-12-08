@@ -1,0 +1,9 @@
+{
+  "label": "Spatial Operations",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "SQL spatial functions for geometry manipulation and analysis."
+  },
+  "collapsed": true
+}

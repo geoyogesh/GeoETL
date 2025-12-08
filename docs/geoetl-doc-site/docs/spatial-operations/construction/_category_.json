@@ -1,0 +1,9 @@
+{
+  "label": "Construction",
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "description": "Functions to create geometries from various input formats."
+  },
+  "collapsed": false
+}

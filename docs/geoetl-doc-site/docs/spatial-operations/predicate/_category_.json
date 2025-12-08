@@ -1,0 +1,9 @@
+{
+  "label": "Predicate",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Functions to test spatial relationships between geometries."
+  },
+  "collapsed": false
+}

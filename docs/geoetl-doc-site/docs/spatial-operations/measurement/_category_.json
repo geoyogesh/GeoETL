@@ -1,0 +1,9 @@
+{
+  "label": "Measurement",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "Functions to measure geometric properties like distance, area, and length."
+  },
+  "collapsed": false
+}

@@ -1,0 +1,9 @@
+{
+  "label": "Accessor",
+  "position": 7,
+  "link": {
+    "type": "generated-index",
+    "description": "Functions to extract properties and components from geometries."
+  },
+  "collapsed": false
+}

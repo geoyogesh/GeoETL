@@ -1,0 +1,9 @@
+{
+  "label": "Validator",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "Functions to validate geometry properties and structure."
+  },
+  "collapsed": false
+}

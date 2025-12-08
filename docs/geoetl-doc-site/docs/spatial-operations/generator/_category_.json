@@ -1,0 +1,9 @@
+{
+  "label": "Generator",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "Functions to generate new geometries from existing ones."
+  },
+  "collapsed": false
+}
