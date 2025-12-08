@@ -3,7 +3,7 @@ slug: spatial-predicates-v0-7-0
 title: "GeoETL v0.7.0: Complete Spatial SQL Toolkit with 29 New Functions"
 authors: [geoyogesh]
 tags: [release, spatial, geos, geoarrow, sql, v0.7.0]
-date: 2025-12-07
+date: 2025-12-08
 ---
 
 **TL;DR**: GeoETL v0.7.0 adds 29 new spatial SQL functions including predicates (`ST_Intersects`, `ST_Contains`), geometry generators (`ST_Buffer`, `ST_ConvexHull`), validators (`ST_IsValid`), and accessors (`ST_X`, `ST_Y`).
