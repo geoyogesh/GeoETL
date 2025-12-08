@@ -4,7 +4,7 @@
 //!
 //! # Architecture
 //!
-//! Spatial UDFs are organized into two categories:
+//! Spatial UDFs are organized into categories:
 //!
 //! ## Construction Functions
 //! These functions create geometries from various input formats:
@@ -18,13 +18,6 @@
 //! - [`create_st_distance_udf`]: Calculate minimum distance between geometries
 //! - [`create_st_area_udf`]: Calculate area of a geometry
 //! - [`create_st_length_udf`]: Calculate length/perimeter of a geometry
-//!
-//! ## Spatial Operations
-//! These functions transform or combine geometries:
-//! - [`create_st_buffer_udf`]: Create buffer polygon around geometry
-//! - [`create_st_centroid_udf`]: Calculate centroid point of geometry
-//! - [`create_st_union_udf`]: Combine two geometries
-//! - [`create_st_intersection_udf`]: Intersection of two geometries
 //!
 //! ## Spatial Predicates
 //! These functions test spatial relationships between geometries:
@@ -49,6 +42,8 @@
 //!
 //! ## Geometry Generators
 //! These functions create new geometries from existing ones:
+//! - [`create_st_buffer_udf`]: Create buffer polygon around geometry
+//! - [`create_st_centroid_udf`]: Calculate centroid point of geometry
 //! - [`create_st_envelope_udf`]: Compute bounding box (envelope) of geometry
 //! - [`create_st_convex_hull_udf`]: Compute convex hull of geometry
 //! - [`create_st_boundary_udf`]: Compute boundary of geometry
@@ -58,6 +53,8 @@
 //!
 //! ## Set Operations
 //! These functions compute set-theoretic operations on geometries:
+//! - [`create_st_union_udf`]: Combine two geometries
+//! - [`create_st_intersection_udf`]: Intersection of two geometries
 //! - [`create_st_difference_udf`]: Compute difference of two geometries (A - B)
 //! - [`create_st_sym_difference_udf`]: Compute symmetric difference (XOR)
 //!
@@ -86,87 +83,59 @@
 use anyhow::Result;
 use datafusion::prelude::SessionContext;
 
+// Shared utilities (kept at root level)
 mod geoarrow_types;
 mod geos_helpers;
-mod st_area;
-mod st_boundary;
-mod st_buffer;
-mod st_centroid;
-mod st_contains;
-mod st_convex_hull;
-mod st_covered_by;
-mod st_covers;
-mod st_crosses;
-mod st_difference;
-mod st_dimension;
-mod st_disjoint;
-mod st_distance;
-mod st_envelope;
-mod st_equals;
-mod st_geometry_type;
-mod st_geomfromtext;
-mod st_geomfromwkb;
-mod st_intersection;
-mod st_intersects;
-mod st_is_closed;
-mod st_is_empty;
-mod st_is_ring;
-mod st_is_simple;
-mod st_is_valid;
-mod st_length;
-mod st_num_geometries;
-mod st_num_points;
-mod st_overlaps;
-mod st_point;
-mod st_point_on_surface;
-mod st_simplify;
-mod st_simplify_preserve_topology;
-mod st_sym_difference;
-mod st_touches;
-mod st_union;
-mod st_within;
-mod st_x;
-mod st_y;
 
-pub use st_area::create_st_area_udf;
-pub use st_boundary::create_st_boundary_udf;
-pub use st_buffer::create_st_buffer_udf;
-pub use st_centroid::create_st_centroid_udf;
-pub use st_contains::create_st_contains_udf;
-pub use st_convex_hull::create_st_convex_hull_udf;
-pub use st_covered_by::create_st_covered_by_udf;
-pub use st_covers::create_st_covers_udf;
-pub use st_crosses::create_st_crosses_udf;
-pub use st_difference::create_st_difference_udf;
-pub use st_dimension::create_st_dimension_udf;
-pub use st_disjoint::create_st_disjoint_udf;
-pub use st_distance::create_st_distance_udf;
-pub use st_envelope::create_st_envelope_udf;
-pub use st_equals::create_st_equals_udf;
-pub use st_geometry_type::create_st_geometry_type_udf;
-pub use st_geomfromtext::create_st_geomfromtext_udf;
-pub use st_geomfromwkb::create_st_geomfromwkb_udf;
-pub use st_intersection::create_st_intersection_udf;
-pub use st_intersects::create_st_intersects_udf;
-pub use st_is_closed::create_st_is_closed_udf;
-pub use st_is_empty::create_st_is_empty_udf;
-pub use st_is_ring::create_st_is_ring_udf;
-pub use st_is_simple::create_st_is_simple_udf;
-pub use st_is_valid::create_st_is_valid_udf;
-pub use st_length::create_st_length_udf;
-pub use st_num_geometries::create_st_num_geometries_udf;
-pub use st_num_points::create_st_num_points_udf;
-pub use st_overlaps::create_st_overlaps_udf;
-pub use st_point::{create_st_makepoint_udf, create_st_point_udf};
-pub use st_point_on_surface::create_st_point_on_surface_udf;
-pub use st_simplify::create_st_simplify_udf;
-pub use st_simplify_preserve_topology::create_st_simplify_preserve_topology_udf;
-pub use st_sym_difference::create_st_sym_difference_udf;
-pub use st_touches::create_st_touches_udf;
-pub use st_union::create_st_union_udf;
-pub use st_within::create_st_within_udf;
-pub use st_x::create_st_x_udf;
-pub use st_y::create_st_y_udf;
+// Category submodules
+mod accessor;
+mod construction;
+mod generator;
+mod measurement;
+mod predicate;
+mod set_operation;
+mod validator;
+
+// Re-export construction functions
+pub use construction::{
+    create_st_geomfromtext_udf, create_st_geomfromwkb_udf, create_st_makepoint_udf,
+    create_st_point_udf,
+};
+
+// Re-export measurement functions
+pub use measurement::{create_st_area_udf, create_st_distance_udf, create_st_length_udf};
+
+// Re-export predicate functions
+pub use predicate::{
+    create_st_contains_udf, create_st_covered_by_udf, create_st_covers_udf, create_st_crosses_udf,
+    create_st_disjoint_udf, create_st_equals_udf, create_st_intersects_udf, create_st_overlaps_udf,
+    create_st_touches_udf, create_st_within_udf,
+};
+
+// Re-export validator functions
+pub use validator::{
+    create_st_is_closed_udf, create_st_is_empty_udf, create_st_is_ring_udf,
+    create_st_is_simple_udf, create_st_is_valid_udf,
+};
+
+// Re-export generator functions
+pub use generator::{
+    create_st_boundary_udf, create_st_buffer_udf, create_st_centroid_udf,
+    create_st_convex_hull_udf, create_st_envelope_udf, create_st_point_on_surface_udf,
+    create_st_simplify_preserve_topology_udf, create_st_simplify_udf,
+};
+
+// Re-export set operation functions
+pub use set_operation::{
+    create_st_difference_udf, create_st_intersection_udf, create_st_sym_difference_udf,
+    create_st_union_udf,
+};
+
+// Re-export accessor functions
+pub use accessor::{
+    create_st_dimension_udf, create_st_geometry_type_udf, create_st_num_geometries_udf,
+    create_st_num_points_udf, create_st_x_udf, create_st_y_udf,
+};
 
 /// Register all spatial UDFs with the `DataFusion` `SessionContext`
 ///
@@ -185,12 +154,6 @@ pub use st_y::create_st_y_udf;
 /// - `ST_Distance(geom1, geom2)` - Minimum distance between geometries
 /// - `ST_Area(geom)` - Area of a geometry
 /// - `ST_Length(geom)` - Length/perimeter of a geometry
-///
-/// ## Spatial Operations
-/// - `ST_Buffer(geom, distance)` - Buffer polygon around geometry
-/// - `ST_Centroid(geom)` - Centroid point of geometry
-/// - `ST_Union(geom1, geom2)` - Combine two geometries
-/// - `ST_Intersection(geom1, geom2)` - Intersection of two geometries
 ///
 /// ## Spatial Predicates
 /// - `ST_Intersects(geom1, geom2)` - Test if geometries intersect
@@ -212,6 +175,8 @@ pub use st_y::create_st_y_udf;
 /// - `ST_IsRing(geom)` - Test if geometry is a ring
 ///
 /// ## Geometry Generators
+/// - `ST_Buffer(geom, distance)` - Buffer polygon around geometry
+/// - `ST_Centroid(geom)` - Centroid point of geometry
 /// - `ST_Envelope(geom)` - Bounding box of geometry
 /// - `ST_ConvexHull(geom)` - Convex hull of geometry
 /// - `ST_Boundary(geom)` - Boundary of geometry
@@ -220,6 +185,8 @@ pub use st_y::create_st_y_udf;
 /// - `ST_SimplifyPreserveTopology(geom, tolerance)` - Topology-preserving simplification
 ///
 /// ## Set Operations
+/// - `ST_Union(geom1, geom2)` - Combine two geometries
+/// - `ST_Intersection(geom1, geom2)` - Intersection of two geometries
 /// - `ST_Difference(geom1, geom2)` - Difference of geometries (A - B)
 /// - `ST_SymDifference(geom1, geom2)` - Symmetric difference (XOR)
 ///
@@ -260,12 +227,6 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(create_st_area_udf());
     ctx.register_udf(create_st_length_udf());
 
-    // Register spatial operations
-    ctx.register_udf(create_st_buffer_udf());
-    ctx.register_udf(create_st_centroid_udf());
-    ctx.register_udf(create_st_union_udf());
-    ctx.register_udf(create_st_intersection_udf());
-
     // Register spatial predicates
     ctx.register_udf(create_st_intersects_udf());
     ctx.register_udf(create_st_contains_udf());
@@ -286,6 +247,8 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(create_st_is_ring_udf());
 
     // Register geometry generators
+    ctx.register_udf(create_st_buffer_udf());
+    ctx.register_udf(create_st_centroid_udf());
     ctx.register_udf(create_st_envelope_udf());
     ctx.register_udf(create_st_convex_hull_udf());
     ctx.register_udf(create_st_boundary_udf());
@@ -294,6 +257,8 @@ pub fn register_spatial_udfs(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(create_st_simplify_preserve_topology_udf());
 
     // Register set operations
+    ctx.register_udf(create_st_union_udf());
+    ctx.register_udf(create_st_intersection_udf());
     ctx.register_udf(create_st_difference_udf());
     ctx.register_udf(create_st_sym_difference_udf());
 
@@ -333,12 +298,6 @@ mod tests {
         assert!(udfs.contains_key("st_area"));
         assert!(udfs.contains_key("st_length"));
 
-        // Spatial operations
-        assert!(udfs.contains_key("st_buffer"));
-        assert!(udfs.contains_key("st_centroid"));
-        assert!(udfs.contains_key("st_union"));
-        assert!(udfs.contains_key("st_intersection"));
-
         // Spatial predicates
         assert!(udfs.contains_key("st_intersects"));
         assert!(udfs.contains_key("st_contains"));
@@ -359,6 +318,8 @@ mod tests {
         assert!(udfs.contains_key("st_isring"));
 
         // Geometry generators
+        assert!(udfs.contains_key("st_buffer"));
+        assert!(udfs.contains_key("st_centroid"));
         assert!(udfs.contains_key("st_envelope"));
         assert!(udfs.contains_key("st_convexhull"));
         assert!(udfs.contains_key("st_boundary"));
@@ -367,6 +328,8 @@ mod tests {
         assert!(udfs.contains_key("st_simplifypreservetopology"));
 
         // Set operations
+        assert!(udfs.contains_key("st_union"));
+        assert!(udfs.contains_key("st_intersection"));
         assert!(udfs.contains_key("st_difference"));
         assert!(udfs.contains_key("st_symdifference"));
 
