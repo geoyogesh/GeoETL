@@ -30,7 +30,7 @@ url = { workspace = true }
 geoetl-core-common = { path = "../../geoetl-core-common" }
 anyhow = { workspace = true }
 # For Parquet reading/writing
-parquet = { version = "56", features = ["async"] }
+parquet = { version = "57", features = ["async"] }
 
 [dev-dependencies]
 geo-traits = { workspace = true }
